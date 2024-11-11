@@ -1,6 +1,6 @@
 # 🚀 astro-electron-ts
 
-Astro-Electron is an integration designed to seamlessly incorporate Electron into Astro projects. It simplifies the process of setting up Electron, providing a streamlined development experience for building cross-platform desktop applications with Astro and Electron.
+Build cross-platform desktop applications with Astro and Electron. This integration seamlessly incorporates Electron into your Astro projects, handling all the setup and configuration automatically so you can focus on building your app.
 
 ## ✨ Features
 
@@ -10,7 +10,7 @@ Astro-Electron is an integration designed to seamlessly incorporate Electron int
 
 ## 📦 Installation
 
-To install `astro-electron`, run one of the following commands in your Astro project:
+To install `astro-electron-ts`, run one of the following commands in your Astro project:
 
 ```bash
 <package-manager> add astro-electron-ts electron
@@ -22,9 +22,9 @@ Follow these steps to get your Electron app running:
 
 ### 1️⃣ Add integration
 
-Add the `astro-electron-ts` integration to your `astro.config.js`:
+Add the `astro-electron-ts` integration to your `astro.config.ts`:
 
-```javascript
+```typescript
 import { defineConfig } from 'astro/config';
 import electron from 'astro-electron-ts';
 
@@ -54,34 +54,67 @@ dist-electron/
 
 ### 4️⃣ Create electron scripts
 
-Create the `src/electron` directory and add these files:
+Create the `/electron` directory in your project folder and add these files:
 
 ```typescript
-// src/electron/main.ts
-import * as url from 'url';
+// /electron/main.ts
 import { app, BrowserWindow } from 'electron';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
-app.whenReady().then(() => {
-  const win = new BrowserWindow({
-    title: 'Main window',
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+process.env.APP_ROOT = path.join(__dirname, '..');
+
+export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
+export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron');
+export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist');
+
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
+  ? path.join(process.env.APP_ROOT, 'public')
+  : RENDERER_DIST;
+
+let win: BrowserWindow | null;
+
+function createWindow() {
+  win = new BrowserWindow({
+    width: 1000,
+    height: 800,
     webPreferences: {
-      preload: url.fileURLToPath(new URL('preload.mjs', import.meta.url)),
+      preload: path.join(__dirname, 'preload.mjs'),
     },
   });
 
-  // You can use `process.env.VITE_DEV_SERVER_URL` when the vite command is called `serve`
-  if (process.env.VITE_DEV_SERVER_URL) {
-    win.loadURL(process.env.VITE_DEV_SERVER_URL);
-    win.webContents.openDevTools();
+  // Test active push message to Renderer-process.
+  win.webContents.on('did-finish-load', () => {
+    win?.webContents.send('main-process-message', new Date().toLocaleString());
+  });
+
+  if (VITE_DEV_SERVER_URL) {
+    win.loadURL(VITE_DEV_SERVER_URL);
   } else {
-    // Load your file
-    win.loadFile('dist/index.html');
+    win.loadFile(path.join(RENDERER_DIST, 'index.html'));
+  }
+}
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+    win = null;
   }
 });
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
+
+app.whenReady().then(createWindow);
 ```
 
 ```typescript
-// src/electron/preload.ts
+// /electron/preload.ts
 console.log('preload.ts');
 ```
 
@@ -89,16 +122,16 @@ console.log('preload.ts');
 
 Customize your Electron setup with these configuration options:
 
-```javascript
+```typescript
 export default defineConfig({
   integrations: [
     electron({
       main: {
-        entry: 'src/electron/main.ts', // Path to your Electron main file
+        entry: '/electron/main.ts', // Path to your Electron main file
         vite: {}, // Vite-specific configurations
       },
       preload: {
-        input: 'src/electron/preload.ts', // Path to your Electron preload file
+        input: '/electron/preload.ts', // Path to your Electron preload file
         vite: {}, // Vite-specific configurations
       },
       renderer: {
