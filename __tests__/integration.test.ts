@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { integration } from '../integration';
+import { integration } from '../src/integration';
 import type { AstroConfig, AstroIntegrationLogger, RouteData } from 'astro';
 
 // Define our own LogMessage interface for testing purposes
