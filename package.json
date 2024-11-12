@@ -6,7 +6,7 @@
   "license": "MIT",
   "author": "SHADXW",
   "type": "module",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "keywords": [
     "withastro",
     "astro-integration",
@@ -19,7 +19,7 @@
   },
   "files": [
     "dist",
-    "template"
+    "templates"
   ],
   "bin": {
     "astro-electron-ts": "./dist/bin/cli.js"
