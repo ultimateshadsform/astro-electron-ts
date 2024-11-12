@@ -307,4 +307,92 @@ describe('CLI', () => {
       expect(console.log).toHaveBeenCalledWith('\nOperation cancelled');
     });
   });
+
+  describe('Electron Integration', () => {
+    it('should add electron integration with correct import', async () => {
+      // Mock astro.config.mjs content
+      const mockConfigContent = `
+import { defineConfig } from 'astro/config';
+
+export default defineConfig({});
+`;
+
+      // Mock the file operations
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().includes('astro.config')) {
+          return Promise.resolve(mockConfigContent);
+        }
+        return Promise.resolve('{}');
+      });
+
+      const { addElectronIntegration } = await import('../src/cli');
+      await addElectronIntegration();
+
+      // Verify the correct import and configuration was added
+      expect(writeFile).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining("import electron from 'astro-electron-ts';"),
+        expect.any(String)
+      );
+
+      expect(writeFile).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('integrations: [electron()],'),
+        expect.any(String)
+      );
+    });
+
+    it('should not add integration if already present', async () => {
+      // Mock config file that already has the integration
+      const existingConfig = `
+import electron from 'astro-electron-ts';
+import { defineConfig } from 'astro/config';
+
+export default defineConfig({
+  integrations: [electron()],
+});
+`;
+
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().includes('astro.config')) {
+          return Promise.resolve(existingConfig);
+        }
+        return Promise.resolve('{}');
+      });
+
+      const { addElectronIntegration } = await import('../src/cli');
+      await addElectronIntegration();
+
+      // Verify that writeFile was not called since no changes were needed
+      expect(writeFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Package Installation', () => {
+    it('should install astro-electron-ts along with other dependencies', async () => {
+      // Mock package.json exists with Astro
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          devDependencies: { astro: '^1.0.0' },
+        })
+      );
+      vi.mocked(confirm).mockResolvedValue(true);
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      // Verify that both electron and astro-electron-ts are installed
+      expect(execSync).toHaveBeenCalledWith(
+        expect.stringContaining('electron'),
+        expect.any(Object)
+      );
+      expect(execSync).toHaveBeenCalledWith(
+        expect.stringContaining('astro-electron-ts'),
+        expect.any(Object)
+      );
+    });
+  });
 });

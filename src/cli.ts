@@ -179,6 +179,65 @@ async function hasPackageJson(): Promise<boolean> {
   }
 }
 
+async function addElectronIntegration(): Promise<void> {
+  try {
+    // Look for either .mjs, .js, or .ts extension
+    const possibleExtensions = ['.mjs', '.js', '.ts'];
+    let configPath: string | undefined;
+
+    for (const ext of possibleExtensions) {
+      const filePath = path.join(process.cwd(), `astro.config${ext}`);
+      try {
+        await fs.access(filePath);
+        configPath = filePath;
+        break;
+      } catch {
+        continue;
+      }
+    }
+
+    if (!configPath) {
+      console.warn(
+        'Could not find astro.config file. Skipping integration setup.'
+      );
+      return;
+    }
+
+    let content = await fs.readFile(configPath, 'utf-8');
+
+    // Check if electron integration is already added
+    if (content.includes('astro-electron-ts')) {
+      return;
+    }
+
+    // Add the electron integration
+    if (content.includes('defineConfig({')) {
+      // Config already has some configuration
+      content = content.replace(
+        'defineConfig({',
+        'defineConfig({\n  integrations: [electron()],\n'
+      );
+    } else if (content.includes('defineConfig()')) {
+      // Empty config
+      content = content.replace(
+        'defineConfig()',
+        'defineConfig({\n  integrations: [electron()]\n})'
+      );
+    }
+
+    // Add import statement if not present
+    if (!content.includes('astro-electron-ts')) {
+      content = `import electron from 'astro-electron-ts';\n${content}`;
+    }
+
+    await fs.writeFile(configPath, content, 'utf-8');
+    console.log('✨ Added Electron integration to Astro config');
+  } catch (error) {
+    console.error('Error adding Electron integration:', error);
+    throw error;
+  }
+}
+
 export async function main() {
   try {
     const defaultPackageManager = await detectPackageManager();
@@ -401,6 +460,9 @@ Next steps:
         );
       }
 
+      // Add this line to set up the integration
+      await addElectronIntegration();
+
       // Only modify package.json if main field is missing
       if (!projectStatus.mainExists) {
         const packageJsonPath = path.join(currentDir, 'package.json');
@@ -422,7 +484,7 @@ Next steps:
       // Only install dependencies if Electron isn't installed
       if (!projectStatus.hasElectron) {
         console.log('Installing dependencies...');
-        const dependencies = ['electron'];
+        const dependencies = ['electron', 'astro-electron-ts'];
         const devDependencies = ['@types/electron', 'electron-builder'];
 
         // Install regular dependencies
@@ -487,3 +549,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   });
 }
+
+export { addElectronIntegration };
