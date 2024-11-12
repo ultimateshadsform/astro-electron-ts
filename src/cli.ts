@@ -252,18 +252,35 @@ async function addElectronIntegration(): Promise<void> {
       return;
     }
 
+    const isJS = await isJavaScriptProject();
+
+    // Add the electron integration with different config based on JS/TS
+    const electronConfig = isJS
+      ? `
+      electron({
+        main: {
+          entry: '/electron/main.js',
+          vite: {},
+        },
+        preload: {
+          input: '/electron/preload.js',
+          vite: {},
+        },
+      })`
+      : `electron()`; // Simplified config for TypeScript
+
     // Add the electron integration
     if (content.includes('defineConfig({')) {
       // Config already has some configuration
       content = content.replace(
         'defineConfig({',
-        'defineConfig({\n  integrations: [electron()],\n'
+        `defineConfig({\n  integrations: [${electronConfig}],\n`
       );
     } else if (content.includes('defineConfig()')) {
       // Empty config
       content = content.replace(
         'defineConfig()',
-        'defineConfig({\n  integrations: [electron()]\n})'
+        `defineConfig({\n  integrations: [${electronConfig}]\n})`
       );
     }
 

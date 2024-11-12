@@ -390,64 +390,77 @@ describe('CLI', () => {
   });
 
   describe('Electron Integration', () => {
-    it('should add electron integration with correct import', async () => {
-      // Mock astro.config.mjs content
-      const mockConfigContent = `
-import { defineConfig } from 'astro/config';
-
-export default defineConfig({});
-`;
-
-      // Mock the file operations
-      vi.mocked(fs.access).mockResolvedValue(undefined);
+    it('should add simple electron integration for TypeScript projects', async () => {
+      // Mock package.json with TypeScript
       vi.mocked(readFile).mockImplementation((path) => {
-        if (path.toString().includes('astro.config')) {
-          return Promise.resolve(mockConfigContent);
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {
+                typescript: '^4.0.0',
+              },
+            })
+          );
         }
-        return Promise.resolve('{}');
+        if (path.toString().includes('astro.config')) {
+          return Promise.resolve(`
+            import { defineConfig } from 'astro/config';
+            export default defineConfig({});
+          `);
+        }
+        return Promise.resolve('');
       });
 
       const { addElectronIntegration } = await import('../src/cli');
       await addElectronIntegration();
 
-      // Verify the correct import and configuration was added
+      // Verify simple electron config is used
       expect(writeFile).toHaveBeenCalledWith(
         expect.any(String),
-        expect.stringContaining("import electron from 'astro-electron-ts';"),
+        expect.stringContaining('electron()'),
         expect.any(String)
       );
-
+      // Verify no explicit path config is added
       expect(writeFile).toHaveBeenCalledWith(
         expect.any(String),
-        expect.stringContaining('integrations: [electron()],'),
+        expect.not.stringContaining('entry:'),
         expect.any(String)
       );
     });
 
-    it('should not add integration if already present', async () => {
-      // Mock config file that already has the integration
-      const existingConfig = `
-import electron from 'astro-electron-ts';
-import { defineConfig } from 'astro/config';
-
-export default defineConfig({
-  integrations: [electron()],
-});
-`;
-
-      vi.mocked(fs.access).mockResolvedValue(undefined);
+    it('should add configured electron integration for JavaScript projects', async () => {
+      // Mock package.json without TypeScript
       vi.mocked(readFile).mockImplementation((path) => {
-        if (path.toString().includes('astro.config')) {
-          return Promise.resolve(existingConfig);
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {},
+            })
+          );
         }
-        return Promise.resolve('{}');
+        if (path.toString().includes('astro.config')) {
+          return Promise.resolve(`
+            import { defineConfig } from 'astro/config';
+            export default defineConfig({});
+          `);
+        }
+        return Promise.resolve('');
       });
 
       const { addElectronIntegration } = await import('../src/cli');
       await addElectronIntegration();
 
-      // Verify that writeFile was not called since no changes were needed
-      expect(writeFile).not.toHaveBeenCalled();
+      // Verify full config with paths is used
+      expect(writeFile).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('/electron/main.js'),
+        expect.any(String)
+      );
+      expect(writeFile).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('/electron/preload.js'),
+        expect.any(String)
+      );
     });
   });
 
