@@ -9,7 +9,6 @@ import {
   isAstroProject,
   isElectronProject,
   hasMainField,
-  hasPackageJson,
   isJavaScriptProject,
 } from './project-checks';
 
@@ -29,7 +28,6 @@ export async function main(
   language?: 'javascript' | 'typescript'
 ): Promise<void> {
   try {
-    const hasPackage = await hasPackageJson();
     const isAstro = await isAstroProject();
     const isElectron = await isElectronProject();
 

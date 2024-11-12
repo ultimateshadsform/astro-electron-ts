@@ -27,10 +27,10 @@ export const createNewProject = async (
 
   const templateType = language || (await getTemplateType());
   const targetPath = path.join(process.cwd(), projectName);
-  const templatePath = path.join(__dirname, '..', 'templates', 'base');
 
   await handleExistingDirectory(targetPath);
-  await fs.cp(templatePath, targetPath, { recursive: true });
+
+  await fs.cp(BASE_TEMPLATE_PATH, targetPath, { recursive: true });
 
   if (templateType === 'javascript') {
     await configureJavaScript(targetPath);
@@ -69,18 +69,6 @@ async function handleExistingDirectory(targetPath: string) {
     ) {
       throw error;
     }
-  }
-}
-
-async function copyTemplate(targetPath: string) {
-  try {
-    await fs.cp(BASE_TEMPLATE_PATH, targetPath, { recursive: true });
-  } catch (error) {
-    console.error(
-      'Error copying template:',
-      error instanceof Error ? error.message : String(error)
-    );
-    throw error;
   }
 }
 
