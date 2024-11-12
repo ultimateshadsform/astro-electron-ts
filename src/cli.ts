@@ -591,11 +591,8 @@ Next steps:
         console.log('Installing dependencies...');
         const dependencies = ['electron', 'astro-electron-ts'];
 
-        // Only include TypeScript types if it's a TypeScript project
-        const isJS = await isJavaScriptProject();
-        const devDependencies = isJS
-          ? ['electron-builder']
-          : ['@types/electron', 'electron-builder'];
+        // Only include electron-builder as dev dependency
+        const devDependencies = ['electron-builder'];
 
         // Install regular dependencies
         for (const dep of dependencies) {

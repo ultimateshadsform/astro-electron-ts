@@ -465,20 +465,28 @@ describe('CLI', () => {
   });
 
   describe('Package Installation', () => {
-    it('should install astro-electron-ts along with other dependencies', async () => {
-      // Mock package.json exists with Astro
+    it('should install same dependencies for both TypeScript and JavaScript projects', async () => {
+      // Mock package.json with TypeScript
       vi.mocked(fs.access).mockResolvedValue(undefined);
-      vi.mocked(readFile).mockResolvedValue(
-        JSON.stringify({
-          devDependencies: { astro: '^1.0.0' },
-        })
-      );
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {
+                astro: '^1.0.0',
+                typescript: '^4.0.0',
+              },
+            })
+          );
+        }
+        return Promise.resolve('');
+      });
       vi.mocked(confirm).mockResolvedValue(true);
 
       const { main } = await import('../src/cli');
       await main();
 
-      // Verify that both electron and astro-electron-ts are installed
+      // Verify core dependencies are installed
       expect(execSync).toHaveBeenCalledWith(
         expect.stringContaining('electron'),
         expect.any(Object)
@@ -487,57 +495,12 @@ describe('CLI', () => {
         expect.stringContaining('astro-electron-ts'),
         expect.any(Object)
       );
-    });
-
-    it('should install TypeScript types for TypeScript projects', async () => {
-      // Mock package.json with Astro and TypeScript
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-      vi.mocked(readFile).mockImplementation((path) => {
-        if (path.toString().endsWith('package.json')) {
-          return Promise.resolve(
-            JSON.stringify({
-              dependencies: {
-                astro: '^1.0.0',
-                typescript: '^4.0.0', // TypeScript project
-              },
-            })
-          );
-        }
-        return Promise.resolve('');
-      });
-      vi.mocked(confirm).mockResolvedValue(true);
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      // Verify @types/electron is installed
+      // Verify only electron-builder is installed as dev dependency
       expect(execSync).toHaveBeenCalledWith(
-        expect.stringContaining('@types/electron'),
+        expect.stringContaining('-D electron-builder'),
         expect.any(Object)
       );
-    });
-
-    it('should not install TypeScript types for JavaScript projects', async () => {
-      // Mock package.json with Astro but no TypeScript
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-      vi.mocked(readFile).mockImplementation((path) => {
-        if (path.toString().endsWith('package.json')) {
-          return Promise.resolve(
-            JSON.stringify({
-              dependencies: {
-                astro: '^1.0.0', // JavaScript project (no TypeScript)
-              },
-            })
-          );
-        }
-        return Promise.resolve('');
-      });
-      vi.mocked(confirm).mockResolvedValue(true);
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      // Verify @types/electron is not installed
+      // Verify @types/electron is NOT installed
       expect(execSync).not.toHaveBeenCalledWith(
         expect.stringContaining('@types/electron'),
         expect.any(Object)
@@ -913,7 +876,7 @@ describe('CLI', () => {
       const writeFileCalls = vi.mocked(writeFile).mock.calls;
       const lastWriteFileCall = writeFileCalls[writeFileCalls.length - 1];
 
-      // Parse the JSON to verify the main field
+      // Parse the JSON to verify the main field is always dist-electron/main.js
       const writtenContent = JSON.parse(lastWriteFileCall[1] as string);
       expect(writtenContent.main).toBe('dist-electron/main.js');
     });
@@ -955,7 +918,7 @@ describe('CLI', () => {
       const writeFileCalls = vi.mocked(writeFile).mock.calls;
       const lastWriteFileCall = writeFileCalls[writeFileCalls.length - 1];
 
-      // Parse the JSON to verify the main field
+      // Parse the JSON to verify the main field is always dist-electron/main.js
       const writtenContent = JSON.parse(lastWriteFileCall[1] as string);
       expect(writtenContent.main).toBe('dist-electron/main.js');
     });
