@@ -15,6 +15,8 @@
   ],
   "scripts": {
     "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
     "check": "tsx scripts/check.ts",
     "test": "vitest"
   },
@@ -23,7 +25,7 @@
     "templates"
   ],
   "bin": {
-    "astro-electron-ts": "./dist/bin/cli.js"
+    "astro-electron-ts": "./dist/bin/index.js"
   },
   "exports": {
     ".": {
@@ -33,7 +35,9 @@
   },
   "dependencies": {
     "@inquirer/prompts": "^7.1.0",
+    "commander": "^12.1.0",
     "detect-package-manager": "^3.0.2",
+    "execa": "^9.5.1",
     "vite-plugin-electron": "^0.28.0"
   },
   "peerDependencies": {

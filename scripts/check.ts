@@ -5,7 +5,7 @@ import { exec } from 'child_process';
 import util from 'util';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEMPLATE_PATH = path.join(__dirname, '..', 'templates');
+const TEST_PROJECTS_PATH = path.join(__dirname, '..', 'test-projects');
 
 const execPromise = util.promisify(exec);
 
@@ -19,171 +19,230 @@ interface PackageJson {
   main?: string;
 }
 
-async function checkTemplates() {
+async function runCommand(command: string, cwd: string): Promise<string> {
+  console.log(`Running command: ${command}`);
+  try {
+    const { stdout, stderr } = await execPromise(command, {
+      cwd,
+      env: {
+        ...process.env,
+        FORCE_COLOR: '0', // Disable colors in output
+      },
+    });
+    if (stderr) {
+      console.error(`Command stderr: ${stderr}`);
+    }
+    console.log(`Command completed successfully`);
+    return stdout.trim();
+  } catch (error) {
+    console.error(`Command failed: ${error}`);
+    throw error;
+  }
+}
+
+async function createAndCheckProjects() {
   const errors: string[] = [];
-  const template = 'base';
-  const templatePath = path.join(TEMPLATE_PATH, template);
 
-  // Check package.json
   try {
-    const packageJsonPath = path.join(templatePath, 'package.json');
-    const mainPackageJsonPath = path.join(__dirname, '..', 'package.json');
+    // Clean up existing test projects if they exist
+    console.log('Cleaning up existing test projects...');
+    await fs.rm(TEST_PROJECTS_PATH, { recursive: true, force: true });
 
-    const packageJson: PackageJson = JSON.parse(
-      await fs.readFile(packageJsonPath, 'utf-8')
+    // Create test projects directory
+    console.log('Creating test projects directory...');
+    await fs.mkdir(TEST_PROJECTS_PATH, { recursive: true });
+
+    // Define project paths
+    const astroJsPath = path.join(TEST_PROJECTS_PATH, 'astro-js');
+    const astroTsPath = path.join(TEST_PROJECTS_PATH, 'astro-ts');
+    const cliJsPath = path.join(TEST_PROJECTS_PATH, 'cli-js');
+    const cliTsPath = path.join(TEST_PROJECTS_PATH, 'cli-ts');
+
+    // Create Astro projects
+    console.log('Creating JavaScript Astro project...');
+    await runCommand(
+      `npm create astro@latest ${astroJsPath} -- --template minimal --no-git --skip-houston --yes`,
+      __dirname
     );
-    const mainPackageJson: PackageJson = JSON.parse(
-      await fs.readFile(mainPackageJsonPath, 'utf-8')
+
+    console.log('Creating TypeScript Astro project...');
+    await runCommand(
+      `npm create astro@latest ${astroTsPath} -- --template minimal --typescript strict --no-git --skip-houston --yes`,
+      __dirname
     );
 
-    // Fetch the latest version of astro-electron-ts from npm
-    const { stdout } = await execPromise('npm view astro-electron-ts version');
-    const npmVersion = stdout.trim();
+    // Add Electron to existing Astro projects
+    console.log('Adding Electron to JavaScript project...');
+    await runCommand(
+      `node ${path.join(
+        __dirname,
+        '..',
+        'bin',
+        'index.ts'
+      )} add ${astroJsPath} --non-interactive`,
+      __dirname
+    );
 
-    // Check if the version matches the main package version
-    if (mainPackageJson.version === npmVersion) {
-      errors.push(
-        `Main package version matches the npm version of astro-electron-ts (${npmVersion}). They should not match.`
-      );
-    }
+    console.log('Adding Electron to TypeScript project...');
+    await runCommand(
+      `node ${path.join(
+        __dirname,
+        '..',
+        'bin',
+        'index.ts'
+      )} add ${astroTsPath} --non-interactive`,
+      __dirname
+    );
 
-    // Required fields
-    if (!packageJson.scripts?.dev) {
-      errors.push(`${template} template missing dev script in package.json`);
-    }
-    if (!packageJson.scripts?.build) {
-      errors.push(`${template} template missing build script in package.json`);
-    }
-    if (!packageJson.scripts?.preview) {
-      errors.push(
-        `${template} template missing preview script in package.json`
-      );
-    }
-    if (!packageJson.main) {
-      errors.push(`${template} template missing main field in package.json`);
-    }
-    if (packageJson.main !== 'dist-electron/main.js') {
-      errors.push(
-        `${template} template has incorrect main field in package.json. Should be 'dist-electron/main.js'`
-      );
-    }
+    // Create new projects using our CLI
+    console.log('Creating JavaScript project from CLI...');
+    await runCommand(
+      `node ${path.join(
+        __dirname,
+        '..',
+        'bin',
+        'index.ts'
+      )} create ${cliJsPath} --non-interactive`,
+      __dirname
+    );
 
-    // Required dependencies
-    const requiredDeps = [
-      'astro',
-      'electron',
-      'astro-electron-ts',
-      '@astrojs/check',
-      'typescript',
+    console.log('Creating TypeScript project from CLI...');
+    await runCommand(
+      `node ${path.join(
+        __dirname,
+        '..',
+        'bin',
+        'index.ts'
+      )} create ${cliTsPath} --typescript --non-interactive`,
+      __dirname
+    );
+
+    // Check all projects
+    const projectsToCheck = [
+      { path: astroJsPath, name: 'astro-js', isTypeScript: false },
+      { path: astroTsPath, name: 'astro-ts', isTypeScript: true },
+      { path: cliJsPath, name: 'cli-js', isTypeScript: false },
+      { path: cliTsPath, name: 'cli-ts', isTypeScript: true },
     ];
-    for (const dep of requiredDeps) {
-      if (!packageJson.dependencies?.[dep]) {
-        errors.push(`${template} template missing ${dep} in dependencies`);
-      }
-    }
 
-    // Required dev dependencies
-    const requiredDevDeps = ['electron-builder'];
-    for (const dep of requiredDevDeps) {
-      if (!packageJson.devDependencies?.[dep]) {
-        errors.push(`${template} template missing ${dep} in devDependencies`);
-      }
-    }
+    for (const {
+      path: projectPath,
+      name: projectName,
+      isTypeScript,
+    } of projectsToCheck) {
+      console.log(`Checking ${projectName}...`);
 
-    // Set template's astro-electron-ts dependency version to match main package version
-    if (
-      packageJson.dependencies?.['astro-electron-ts'] !==
-      mainPackageJson.version
-    ) {
-      if (!packageJson.dependencies) {
-        packageJson.dependencies = {};
-      }
-      if (!mainPackageJson.version) {
-        errors.push('Main package.json is missing version field');
-        return errors;
-      }
-      if (
-        packageJson.dependencies['astro-electron-ts'] !==
-        mainPackageJson.version
-      ) {
-        console.log(
-          'Version mismatch. Updating template version to match main package version'
+      // Check package.json
+      try {
+        const packageJsonPath = path.join(projectPath, 'package.json');
+        const packageJson: PackageJson = JSON.parse(
+          await fs.readFile(packageJsonPath, 'utf-8')
         );
-        packageJson.dependencies['astro-electron-ts'] =
-          mainPackageJson.version as string;
-        // Write the updated package.json back to file
-        await fs.writeFile(
-          packageJsonPath,
-          JSON.stringify(packageJson, null, 2)
-        );
-        console.log('Updated template version to', mainPackageJson.version);
+
+        // Required fields
+        if (!packageJson.scripts?.dev) {
+          errors.push(`${projectName} missing dev script in package.json`);
+        }
+        if (!packageJson.scripts?.build) {
+          errors.push(`${projectName} missing build script in package.json`);
+        }
+        if (!packageJson.scripts?.preview) {
+          errors.push(`${projectName} missing preview script in package.json`);
+        }
+        if (!packageJson.main) {
+          errors.push(`${projectName} missing main field in package.json`);
+        }
+        if (packageJson.main !== 'dist-electron/main.js') {
+          errors.push(
+            `${projectName} has incorrect main field in package.json. Should be 'dist-electron/main.js'`
+          );
+        }
+
+        // Required dependencies
+        const requiredDeps = ['astro', 'electron', 'astro-electron-ts'];
+        for (const dep of requiredDeps) {
+          if (!packageJson.dependencies?.[dep]) {
+            errors.push(`${projectName} missing ${dep} in dependencies`);
+          }
+        }
+
+        // Required dev dependencies
+        const requiredDevDeps = ['electron-builder'];
+        for (const dep of requiredDevDeps) {
+          if (!packageJson.devDependencies?.[dep]) {
+            errors.push(`${projectName} missing ${dep} in devDependencies`);
+          }
+        }
+      } catch (error) {
+        errors.push(`Error checking ${projectName} package.json: ${error}`);
+      }
+
+      // Check astro.config.mjs
+      try {
+        const configPath = path.join(projectPath, 'astro.config.mjs');
+        const configContent = await fs.readFile(configPath, 'utf-8');
+
+        if (!configContent.includes('astro-electron-ts')) {
+          errors.push(
+            `${projectName} missing astro-electron-ts import in astro.config.mjs`
+          );
+        }
+      } catch (error) {
+        errors.push(`Error checking ${projectName} astro.config.mjs: ${error}`);
+      }
+
+      // Check electron files
+      const electronFiles = isTypeScript
+        ? ['main.ts', 'preload.ts']
+        : ['main.js', 'preload.js'];
+
+      for (const file of electronFiles) {
+        try {
+          await fs.access(path.join(projectPath, 'electron', file));
+        } catch {
+          errors.push(`${projectName} missing electron/${file}`);
+        }
+      }
+
+      // Check for incorrect file extensions
+      const incorrectFiles = isTypeScript
+        ? ['main.js', 'preload.js']
+        : ['main.ts', 'preload.ts'];
+
+      for (const file of incorrectFiles) {
+        try {
+          await fs.access(path.join(projectPath, 'electron', file));
+          errors.push(
+            `${projectName} has incorrect file: electron/${file}. It should use ${
+              isTypeScript ? '.ts' : '.js'
+            } extension.`
+          );
+        } catch {
+          // File doesn't exist, which is correct in this case
+        }
+      }
+
+      // Check required directories
+      const requiredDirs = ['src', 'public', 'electron'];
+      for (const dir of requiredDirs) {
+        try {
+          await fs.access(path.join(projectPath, dir));
+        } catch {
+          errors.push(`${projectName} missing ${dir} directory`);
+        }
       }
     }
+
+    return errors;
   } catch (error) {
-    errors.push(`Error checking ${template} package.json: ${error}`);
+    console.error('Error creating and checking projects:', error);
+    throw error;
   }
-
-  // Check astro.config.mjs
-  try {
-    const configPath = path.join(templatePath, 'astro.config.mjs');
-    const configContent = await fs.readFile(configPath, 'utf-8');
-
-    if (!configContent.includes('astro-electron-ts')) {
-      errors.push(
-        `${template} template missing astro-electron-ts import in astro.config.mjs`
-      );
-    }
-  } catch (error) {
-    errors.push(`Error checking ${template} astro.config.mjs: ${error}`);
-  }
-
-  // Check electron files
-  const electronFiles = ['main.ts', 'preload.ts'];
-
-  for (const file of electronFiles) {
-    try {
-      await fs.access(path.join(templatePath, 'electron', file));
-    } catch {
-      errors.push(`${template} template missing electron/${file}`);
-    }
-  }
-
-  // Check required directories
-  const requiredDirs = ['src', 'public', 'electron'];
-  for (const dir of requiredDirs) {
-    try {
-      await fs.access(path.join(templatePath, dir));
-    } catch {
-      errors.push(`${template} template missing ${dir} directory`);
-    }
-  }
-
-  // Check required Astro files
-  const requiredAstroFiles = [
-    'src/pages/index.astro',
-    'src/layouts/Layout.astro',
-    'src/components/Card.astro',
-  ];
-  for (const file of requiredAstroFiles) {
-    try {
-      await fs.access(path.join(templatePath, file));
-    } catch {
-      errors.push(`${template} template missing ${file}`);
-    }
-  }
-
-  try {
-    await fs.access(path.join(__dirname, '..', 'dist'));
-  } catch {
-    errors.push(`Main package missing dist directory`);
-  }
-
-  return errors;
 }
 
 async function main() {
-  console.log('🔍 Checking project templates...');
-  const errors = await checkTemplates();
+  console.log('🔍 Creating and checking test projects...');
+  const errors = await createAndCheckProjects();
 
   if (errors.length > 0) {
     console.error('\n❌ Found the following issues:');
