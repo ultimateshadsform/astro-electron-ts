@@ -475,6 +475,61 @@ export default defineConfig({
         expect.any(Object)
       );
     });
+
+    it('should install TypeScript types for TypeScript projects', async () => {
+      // Mock package.json with Astro and TypeScript
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {
+                astro: '^1.0.0',
+                typescript: '^4.0.0', // TypeScript project
+              },
+            })
+          );
+        }
+        return Promise.resolve('');
+      });
+      vi.mocked(confirm).mockResolvedValue(true);
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      // Verify @types/electron is installed
+      expect(execSync).toHaveBeenCalledWith(
+        expect.stringContaining('@types/electron'),
+        expect.any(Object)
+      );
+    });
+
+    it('should not install TypeScript types for JavaScript projects', async () => {
+      // Mock package.json with Astro but no TypeScript
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {
+                astro: '^1.0.0', // JavaScript project (no TypeScript)
+              },
+            })
+          );
+        }
+        return Promise.resolve('');
+      });
+      vi.mocked(confirm).mockResolvedValue(true);
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      // Verify @types/electron is not installed
+      expect(execSync).not.toHaveBeenCalledWith(
+        expect.stringContaining('@types/electron'),
+        expect.any(Object)
+      );
+    });
   });
 
   describe('Template Selection', () => {

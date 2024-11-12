@@ -565,11 +565,16 @@ Next steps:
         }
       }
 
-      // Only install dependencies if Electron isn't installed
+      // If no Astro project detected, only show create option
       if (!projectStatus.hasElectron) {
         console.log('Installing dependencies...');
         const dependencies = ['electron', 'astro-electron-ts'];
-        const devDependencies = ['@types/electron', 'electron-builder'];
+
+        // Only include TypeScript types if it's a TypeScript project
+        const isJS = await isJavaScriptProject();
+        const devDependencies = isJS
+          ? ['electron-builder']
+          : ['@types/electron', 'electron-builder'];
 
         // Install regular dependencies
         for (const dep of dependencies) {
