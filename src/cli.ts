@@ -91,14 +91,33 @@ async function isAstroProject(): Promise<boolean> {
 
 async function isElectronProject(): Promise<boolean> {
   try {
+    // Check package.json first
     const packageJsonPath = path.join(process.cwd(), 'package.json');
     const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
     const packageJson = JSON.parse(packageJsonContent);
 
-    return !!(
+    const hasElectronDep = !!(
       packageJson.dependencies?.electron ||
       packageJson.devDependencies?.electron
     );
+
+    // Check for astro-electron-ts in the config
+    const possibleExtensions = ['.mjs', '.js', '.ts'];
+    let configContent = '';
+
+    for (const ext of possibleExtensions) {
+      const configPath = path.join(process.cwd(), `astro.config${ext}`);
+      try {
+        configContent = await readFile(configPath, 'utf-8');
+        break;
+      } catch {
+        continue;
+      }
+    }
+
+    const hasElectronIntegration = configContent.includes('astro-electron-ts');
+
+    return hasElectronDep && hasElectronIntegration;
   } catch {
     return false;
   }
@@ -550,4 +569,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   });
 }
 
-export { addElectronIntegration };
+export { addElectronIntegration, isElectronProject };

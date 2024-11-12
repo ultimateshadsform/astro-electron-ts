@@ -101,19 +101,39 @@ describe('CLI', () => {
       vi.mocked(fs.access).mockResolvedValue(undefined);
 
       // Mock package.json with complete setup
-      vi.mocked(readFile).mockResolvedValue(
-        JSON.stringify({
-          name: 'test-project',
-          main: 'dist-electron/main.js',
-          dependencies: {
-            astro: '^1.0.0',
-            electron: '^1.0.0',
-          },
-        })
-      );
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              name: 'test-project',
+              main: 'dist-electron/main.js',
+              dependencies: {
+                astro: '^1.0.0',
+                electron: '^1.0.0',
+                'astro-electron-ts': '^1.0.0',
+              },
+            })
+          );
+        }
+        if (path.toString().includes('astro.config')) {
+          return Promise.resolve(`
+            import electron from 'astro-electron-ts';
+            import { defineConfig } from 'astro/config';
+            export default defineConfig({
+              integrations: [electron()]
+            });
+          `);
+        }
+        return Promise.resolve(''); // For any other files
+      });
 
       // Mock electron files exist
-      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(fs.access).mockImplementation((path) => {
+        if (path.toString().includes('electron/')) {
+          return Promise.resolve(undefined);
+        }
+        return Promise.resolve(undefined);
+      });
 
       const { main } = await import('../src/cli');
       await main();
@@ -181,6 +201,67 @@ describe('CLI', () => {
       expect(console.log).toHaveBeenCalledWith(
         expect.stringContaining('Project created successfully!')
       );
+    });
+
+    it('should detect missing electron integration in config', async () => {
+      // Mock package.json with electron but no integration in config
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {
+                astro: '^1.0.0',
+                electron: '^1.0.0',
+              },
+            })
+          );
+        }
+        if (path.toString().includes('astro.config')) {
+          return Promise.resolve(`
+            import { defineConfig } from 'astro/config';
+            export default defineConfig({});
+          `);
+        }
+        return Promise.reject(new Error('File not found'));
+      });
+
+      const { isElectronProject } = await import('../src/cli');
+      const result = await isElectronProject();
+
+      expect(result).toBe(false);
+    });
+
+    it('should detect complete electron setup including integration', async () => {
+      // Mock package.json and config with complete setup
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {
+                astro: '^1.0.0',
+                electron: '^1.0.0',
+              },
+            })
+          );
+        }
+        if (path.toString().includes('astro.config')) {
+          return Promise.resolve(`
+            import electron from 'astro-electron-ts';
+            import { defineConfig } from 'astro/config';
+            export default defineConfig({
+              integrations: [electron()]
+            });
+          `);
+        }
+        return Promise.reject(new Error('File not found'));
+      });
+
+      const { isElectronProject } = await import('../src/cli');
+      const result = await isElectronProject();
+
+      expect(result).toBe(true);
     });
   });
 
