@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "astro": "^4.16.10",
-    "astro-electron-ts": "1.0.7",
+    "astro-electron-ts": "1.0.8",
     "electron": "^33.2.0"
   }
 }
