@@ -259,11 +259,11 @@ async function addElectronIntegration(): Promise<void> {
       ? `
       electron({
         main: {
-          entry: '/electron/main.js',
+          entry: 'electron/main.js',
           vite: {},
         },
         preload: {
-          input: '/electron/preload.js',
+          input: 'electron/preload.js',
           vite: {},
         },
       })`
@@ -525,10 +525,8 @@ Next steps:
       }
       if (!projectStatus.electronFilesExist) {
         const isJS = await isJavaScriptProject();
-        const mainPath = isJS ? 'electron/main.js' : 'dist-electron/main.js';
-        const preloadPath = isJS
-          ? 'electron/preload.js'
-          : 'dist-electron/preload.js';
+        const mainPath = `electron/main${isJS ? '.js' : '.ts'}`;
+        const preloadPath = `electron/preload${isJS ? '.js' : '.ts'}`;
         console.log(
           `ℹ️  Required Electron files missing (${mainPath} and/or ${preloadPath})`
         );
@@ -575,9 +573,9 @@ Next steps:
         try {
           const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
           const packageJson = JSON.parse(packageJsonContent);
-          packageJson.main = (await isJavaScriptProject())
-            ? 'electron/main.js'
-            : 'dist-electron/main.js';
+          // Always use dist-electron for both JS and TS
+          const isJS = await isJavaScriptProject();
+          packageJson.main = `dist-electron/main${isJS ? '.js' : '.ts'}`;
           await writeFile(
             packageJsonPath,
             JSON.stringify(packageJson, null, 2)

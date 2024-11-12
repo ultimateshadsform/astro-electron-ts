@@ -7,11 +7,11 @@ export default defineConfig({
   integrations: [
     electron({
       main: {
-        entry: '/electron/main.ts', // Path to your Electron main file
+        entry: '/electron/main.js', // Path to your Electron main file
         vite: {}, // Vite-specific configurations
       },
       preload: {
-        input: '/electron/preload.ts', // Path to your Electron preload file
+        input: '/electron/preload.js', // Path to your Electron preload file
         vite: {}, // Vite-specific configurations
       },
     }),

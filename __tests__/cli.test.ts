@@ -453,12 +453,12 @@ describe('CLI', () => {
       // Verify full config with paths is used
       expect(writeFile).toHaveBeenCalledWith(
         expect.any(String),
-        expect.stringContaining('/electron/main.js'),
+        expect.stringContaining('electron/main.js'),
         expect.any(String)
       );
       expect(writeFile).toHaveBeenCalledWith(
         expect.any(String),
-        expect.stringContaining('/electron/preload.js'),
+        expect.stringContaining('electron/preload.js'),
         expect.any(String)
       );
     });
@@ -915,7 +915,7 @@ describe('CLI', () => {
 
       // Parse the JSON to verify the main field
       const writtenContent = JSON.parse(lastWriteFileCall[1] as string);
-      expect(writtenContent.main).toBe('dist-electron/main.js');
+      expect(writtenContent.main).toBe('dist-electron/main.ts');
     });
 
     it('should set correct main field for JavaScript projects', async () => {
@@ -957,7 +957,7 @@ describe('CLI', () => {
 
       // Parse the JSON to verify the main field
       const writtenContent = JSON.parse(lastWriteFileCall[1] as string);
-      expect(writtenContent.main).toBe('electron/main.js');
+      expect(writtenContent.main).toBe('dist-electron/main.js');
     });
   });
 });
