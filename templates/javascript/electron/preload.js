@@ -5,4 +5,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCurrentTime: () => new Date().toLocaleTimeString(),
 });
 
-console.log('preload.ts');
+console.log('preload.js');

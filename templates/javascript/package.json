@@ -5,7 +5,7 @@
   "author": "astro-electron-ts",
   "type": "module",
   "version": "0.0.1",
-  "main": "electron/main.js",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "astro": "^4.16.10",
-    "astro-electron-ts": "1.0.17",
+    "astro-electron-ts": "1.0.18",
     "electron": "^33.2.0"
   }
 }
