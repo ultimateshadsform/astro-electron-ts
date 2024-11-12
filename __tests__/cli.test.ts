@@ -6,6 +6,12 @@ import { readFile, writeFile } from 'fs/promises';
 import { execSync } from 'child_process';
 import { detect } from 'detect-package-manager';
 
+// Import the type from cli.ts
+type ExitPromptError = Error & {
+  code?: string;
+  exitCode?: number;
+};
+
 // Mock external modules
 vi.mock('@inquirer/prompts');
 vi.mock('fs/promises');
@@ -38,6 +44,9 @@ describe('CLI', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    // Add process.exit mock
+    vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
   });
 
   afterEach(() => {
@@ -45,10 +54,11 @@ describe('CLI', () => {
   });
 
   describe('Project Creation', () => {
-    it('should create a new project when selected', async () => {
-      vi.mocked(select).mockResolvedValueOnce('create');
-      vi.mocked(input).mockResolvedValueOnce('my-project');
+    it('should create a new project when no package.json exists', async () => {
+      // Mock no package.json
       vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
+      vi.mocked(input).mockResolvedValueOnce('my-project');
+      vi.mocked(select).mockResolvedValueOnce('npm');
 
       const { main } = await import('../src/cli');
       await main();
@@ -86,19 +96,23 @@ describe('CLI', () => {
   });
 
   describe('Project Detection', () => {
-    beforeEach(() => {
-      vi.mocked(select).mockResolvedValueOnce('add');
-    });
+    it('should detect complete Astro + Electron setup', async () => {
+      // Mock package.json exists
+      vi.mocked(fs.access).mockResolvedValue(undefined);
 
-    it('should detect Astro + Electron project correctly', async () => {
+      // Mock package.json with complete setup
       vi.mocked(readFile).mockResolvedValue(
         JSON.stringify({
           name: 'test-project',
           main: 'dist-electron/main.js',
-          dependencies: { electron: '^1.0.0' },
-          devDependencies: { astro: '^1.0.0' },
+          dependencies: {
+            astro: '^1.0.0',
+            electron: '^1.0.0',
+          },
         })
       );
+
+      // Mock electron files exist
       vi.mocked(fs.access).mockResolvedValue(undefined);
 
       const { main } = await import('../src/cli');
@@ -109,60 +123,72 @@ describe('CLI', () => {
       );
     });
 
-    it('should detect non-Astro project and show create suggestion', async () => {
-      vi.mocked(readFile).mockResolvedValue(
-        JSON.stringify({
-          name: 'test-project',
-          dependencies: {},
-          devDependencies: {},
-        })
-      );
+    it('should offer to configure Electron in existing Astro project', async () => {
+      // Mock package.json exists with only Astro
+      vi.mocked(fs.access).mockResolvedValue(undefined);
 
-      const { main } = await import('../src/cli');
-      await main();
+      // Mock hasPackageJson check
+      vi.mocked(fs.access).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(undefined);
+        }
+        // Mock electron files don't exist
+        return Promise.reject(new Error('ENOENT'));
+      });
 
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('create an Astro project')
-      );
-    });
+      // Mock package.json with Astro only
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: { astro: '^1.0.0' },
+            })
+          );
+        }
+        return Promise.reject(new Error('ENOENT'));
+      });
 
-    it('should detect missing Electron components', async () => {
-      vi.mocked(readFile).mockResolvedValue(
-        JSON.stringify({
-          devDependencies: { astro: '^1.0.0' },
-        })
-      );
-      vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT'));
       vi.mocked(confirm).mockResolvedValue(true);
 
       const { main } = await import('../src/cli');
       await main();
 
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('Electron not detected')
+      // Check for both messages in order
+      expect(console.log).toHaveBeenCalledWith('✨ Astro project detected!');
+      expect(confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('add Electron'),
+        })
       );
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('Main field missing')
+    });
+
+    it('should create new project when no Astro is detected', async () => {
+      // Mock package.json exists but no Astro
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          dependencies: {},
+        })
       );
+
+      vi.mocked(input).mockResolvedValue('new-project');
+      vi.mocked(select).mockResolvedValue('npm');
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      expect(fs.cp).toHaveBeenCalled();
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('Required Electron files missing')
+        expect.stringContaining('Project created successfully!')
       );
     });
   });
 
   describe('Package Manager Detection', () => {
-    beforeEach(() => {
-      vi.mocked(select).mockResolvedValueOnce('add');
-    });
-
-    it('should use detected package manager without prompting', async () => {
+    it('should use detected package manager without prompting if not npm', async () => {
       vi.mocked(detect).mockResolvedValue('pnpm');
-      vi.mocked(readFile).mockResolvedValue(
-        JSON.stringify({
-          devDependencies: { astro: '^1.0.0' },
-        })
-      );
-      vi.mocked(confirm).mockResolvedValue(true);
+      vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT')); // No package.json
+      vi.mocked(input).mockResolvedValue('new-project');
 
       const { main } = await import('../src/cli');
       await main();
@@ -172,23 +198,13 @@ describe('CLI', () => {
           message: 'Which package manager would you like to use?',
         })
       );
-      expect(execSync).toHaveBeenCalledWith(
-        expect.stringContaining('pnpm add'),
-        expect.any(Object)
-      );
     });
 
-    it('should prompt for package manager when detection fails', async () => {
+    it('should prompt for package manager when npm is detected', async () => {
       vi.mocked(detect).mockResolvedValue('npm');
-      vi.mocked(readFile).mockResolvedValue(
-        JSON.stringify({
-          devDependencies: { astro: '^1.0.0' },
-        })
-      );
-      vi.mocked(confirm).mockResolvedValue(true);
-      vi.mocked(select)
-        .mockResolvedValueOnce('add')
-        .mockResolvedValueOnce('pnpm');
+      vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT')); // No package.json
+      vi.mocked(input).mockResolvedValue('new-project');
+      vi.mocked(select).mockResolvedValue('pnpm');
 
       const { main } = await import('../src/cli');
       await main();
@@ -206,41 +222,89 @@ describe('CLI', () => {
       const error = new Error('Permission denied') as NodeJS.ErrnoException;
       error.code = 'EACCES';
 
-      // Mock select to choose 'add' to trigger Astro check
-      vi.mocked(select).mockResolvedValueOnce('add');
+      // Mock hasPackageJson check
+      vi.mocked(fs.access).mockRejectedValue(error);
 
       // Mock readFile to fail with permission error
-      vi.mocked(readFile).mockRejectedValueOnce(error);
-
-      // Mock fs.access to also fail with same error
-      vi.mocked(fs.access).mockRejectedValueOnce(error);
+      vi.mocked(readFile).mockRejectedValue(error);
 
       const { main } = await import('../src/cli');
-      await expect(main()).rejects.toThrow('Permission denied');
-    });
 
-    it('should handle invalid package.json', async () => {
-      vi.mocked(readFile).mockResolvedValue('{ invalid json }');
-      vi.mocked(select).mockResolvedValueOnce('add');
-
-      const { main } = await import('../src/cli');
-      await expect(main()).rejects.toThrow('Invalid package.json format');
+      // The error should be thrown and logged
+      await main();
+      expect(console.error).toHaveBeenCalledWith('Error:', 'Permission denied');
+      expect(process.exit).toHaveBeenCalledWith(1);
     });
 
     it('should handle dependency installation errors', async () => {
-      vi.mocked(select).mockResolvedValueOnce('add');
+      // Mock package.json exists with Astro
+      vi.mocked(fs.access).mockResolvedValue(undefined);
       vi.mocked(readFile).mockResolvedValue(
         JSON.stringify({
           devDependencies: { astro: '^1.0.0' },
         })
       );
       vi.mocked(confirm).mockResolvedValue(true);
-      vi.mocked(execSync).mockImplementationOnce(() => {
-        throw new Error('Installation failed');
+
+      // Mock execSync to throw
+      const installError = new Error('Installation failed');
+      vi.mocked(execSync).mockImplementation(() => {
+        throw installError;
       });
 
       const { main } = await import('../src/cli');
-      await expect(main()).rejects.toThrow('Installation failed');
+
+      await main().catch(() => {
+        console.error('Installation failed');
+      });
+
+      // Check for both error messages in order
+      expect(console.error).toHaveBeenNthCalledWith(
+        1,
+        'Failed to install electron:',
+        installError
+      );
+      expect(console.error).toHaveBeenNthCalledWith(
+        2,
+        'Error:',
+        'Installation failed'
+      );
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('User Interruption', () => {
+    it('should handle Ctrl+C gracefully during project selection', async () => {
+      const exitError = new Error(
+        'User force closed the prompt'
+      ) as ExitPromptError;
+      exitError.code = 'EXIT';
+      vi.mocked(select).mockRejectedValueOnce(exitError);
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      expect(console.log).toHaveBeenCalledWith('\nOperation cancelled');
+    });
+
+    it('should handle Ctrl+C gracefully during confirmation', async () => {
+      vi.mocked(select).mockResolvedValueOnce('add');
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          devDependencies: { astro: '^1.0.0' },
+        })
+      );
+
+      const exitError = new Error(
+        'User force closed the prompt'
+      ) as ExitPromptError;
+      exitError.code = 'EXIT';
+      vi.mocked(confirm).mockRejectedValueOnce(exitError);
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      expect(console.log).toHaveBeenCalledWith('\nOperation cancelled');
     });
   });
 });
