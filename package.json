@@ -6,7 +6,7 @@
   "license": "MIT",
   "author": "SHADXW",
   "type": "module",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "keywords": [
     "withastro",
     "astro-integration",
@@ -18,15 +18,20 @@
     "test": "vitest"
   },
   "files": [
-    "dist"
+    "dist",
+    "template"
   ],
+  "bin": {
+    "astro-electron-ts": "./dist/bin/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "import": "./dist/index.js"
     }
   },
   "dependencies": {
+    "@inquirer/prompts": "^7.1.0",
     "vite-plugin-electron": "^0.28.0"
   },
   "peerDependencies": {

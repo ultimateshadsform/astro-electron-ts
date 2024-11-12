@@ -1,19 +1,20 @@
 import { defineConfig } from 'tsup';
-import { peerDependencies } from './package.json';
 
-export default defineConfig((options) => {
-  const dev = !!options.watch;
-  return {
-    entry: ['src/index.ts'],
-    format: ['esm'],
-    target: ['node18', 'node20', 'node22'],
-    bundle: true,
-    dts: true,
-    sourcemap: true,
-    clean: true,
-    splitting: false,
-    minify: !dev,
-    external: Object.keys(peerDependencies),
-    tsconfig: 'tsconfig.json',
-  };
+export default defineConfig({
+  entry: {
+    index: 'src/index.ts',
+    'bin/cli': 'bin/cli.ts',
+  },
+  format: ['esm'],
+  dts: true,
+  external: [
+    'node:tty',
+    'node:fs',
+    'node:path',
+    'node:process',
+    '@inquirer/prompts',
+  ],
+  clean: true,
+  bundle: true,
+  shims: true,
 });
