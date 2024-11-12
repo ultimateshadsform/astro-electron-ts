@@ -478,28 +478,51 @@ export default defineConfig({
   });
 
   describe('Template Selection', () => {
-    it('should use JavaScript template when no TypeScript is detected', async () => {
-      // Mock package.json without TypeScript
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-      vi.mocked(readFile).mockImplementation((path) => {
-        if (path.toString().endsWith('package.json')) {
-          return Promise.resolve(
-            JSON.stringify({
-              dependencies: {},
-              devDependencies: {},
-            })
-          );
-        }
-        return Promise.resolve('');
-      });
-
+    it('should use TypeScript template when TypeScript is selected', async () => {
+      // Mock no package.json
+      vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
       vi.mocked(input).mockResolvedValue('new-project');
-      vi.mocked(select).mockResolvedValue('npm');
+      vi.mocked(select).mockImplementation((options: any) => {
+        const promise = Promise.resolve(
+          options.message.includes('package manager')
+            ? 'npm'
+            : options.message.includes('language')
+            ? 'typescript'
+            : ''
+        ) as Promise<string> & { cancel: () => void };
+        promise.cancel = () => {};
+        return promise;
+      });
 
       const { main } = await import('../src/cli');
       await main();
 
-      // Verify that the JavaScript template was copied
+      expect(fs.cp).toHaveBeenCalledWith(
+        expect.stringContaining('typescript'),
+        expect.any(String),
+        expect.any(Object)
+      );
+    });
+
+    it('should use JavaScript template when JavaScript is selected', async () => {
+      // Mock no package.json
+      vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
+      vi.mocked(input).mockResolvedValue('new-project');
+      vi.mocked(select).mockImplementation((options: any) => {
+        const promise = Promise.resolve(
+          options.message.includes('package manager')
+            ? 'npm'
+            : options.message.includes('language')
+            ? 'javascript'
+            : ''
+        ) as Promise<string> & { cancel: () => void };
+        promise.cancel = () => {};
+        return promise;
+      });
+
+      const { main } = await import('../src/cli');
+      await main();
+
       expect(fs.cp).toHaveBeenCalledWith(
         expect.stringContaining('javascript'),
         expect.any(String),
@@ -507,30 +530,36 @@ export default defineConfig({
       );
     });
 
-    it('should use TypeScript template when TypeScript is detected', async () => {
-      // Mock package.json with TypeScript
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-      vi.mocked(readFile).mockImplementation((path) => {
-        if (path.toString().endsWith('package.json')) {
-          return Promise.resolve(
-            JSON.stringify({
-              dependencies: {},
-              devDependencies: {
-                typescript: '^4.0.0',
-              },
-            })
-          );
-        }
-        return Promise.resolve('');
-      });
-
+    it('should default to TypeScript when selection is cancelled', async () => {
+      // Mock no package.json
+      vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
       vi.mocked(input).mockResolvedValue('new-project');
-      vi.mocked(select).mockResolvedValue('npm');
+
+      // Track which prompt is being called
+      let promptCount = 0;
+      vi.mocked(select).mockImplementation(() => {
+        promptCount++;
+        if (promptCount === 1) {
+          // First prompt is package manager
+          const promise = Promise.resolve('npm') as Promise<string> & {
+            cancel: () => void;
+          };
+          promise.cancel = () => {};
+          return promise;
+        } else {
+          // Second prompt is language selection - simulate cancellation
+          const error = new Error('User force closed the prompt');
+          (error as any).code = 'EXIT';
+          return Promise.reject(error) as Promise<string> & {
+            cancel: () => void;
+          };
+        }
+      });
 
       const { main } = await import('../src/cli');
       await main();
 
-      // Verify that the TypeScript template was copied
+      // Verify the template was copied with typescript
       expect(fs.cp).toHaveBeenCalledWith(
         expect.stringContaining('typescript'),
         expect.any(String),

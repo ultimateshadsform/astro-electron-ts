@@ -24,9 +24,15 @@ async function detectPackageManager(): Promise<PackageManager> {
   }
 }
 
-async function copyTemplate(templatePath: string, targetPath: string) {
+async function copyTemplate(
+  templatePath: string,
+  targetPath: string,
+  templateType?: 'javascript' | 'typescript'
+) {
   try {
-    const isJS = await isJavaScriptProject();
+    const isJS = templateType
+      ? templateType === 'javascript'
+      : await isJavaScriptProject();
     const templateDir = path.join(
       templatePath,
       isJS ? 'javascript' : 'typescript'
@@ -283,6 +289,31 @@ async function isJavaScriptProject(): Promise<boolean> {
   }
 }
 
+// Modify getTemplateType function to handle cancellation properly
+async function getTemplateType(): Promise<'javascript' | 'typescript'> {
+  try {
+    return (await select({
+      message: 'Which language would you like to use?',
+      choices: [
+        {
+          value: 'typescript',
+          name: 'TypeScript',
+          description: 'Strongly typed JavaScript (recommended)',
+        },
+        {
+          value: 'javascript',
+          name: 'JavaScript',
+          description: 'Plain JavaScript',
+        },
+      ],
+      default: 'typescript',
+    })) as 'javascript' | 'typescript';
+  } catch {
+    // Return typescript as default when cancelled or on error
+    return 'typescript';
+  }
+}
+
 export async function main() {
   try {
     const defaultPackageManager = await detectPackageManager();
@@ -309,6 +340,48 @@ export async function main() {
 
       try {
         packageManager = await getPackageManager(defaultPackageManager);
+        const templateType = await getTemplateType();
+        const targetPath = path.join(process.cwd(), projectName);
+
+        // Check if directory exists
+        try {
+          await fs.access(targetPath);
+          const overwrite = await confirm({
+            message: 'Directory already exists. Overwrite?',
+            default: false,
+          });
+
+          if (!overwrite) {
+            console.log('Operation cancelled');
+            return;
+          }
+        } catch (error: unknown) {
+          // Directory doesn't exist, which is what we want
+          if (
+            error instanceof Error &&
+            'code' in error &&
+            (error as NodeJS.ErrnoException).code !== 'ENOENT'
+          ) {
+            console.error('Error checking directory:', error.message);
+            throw error;
+          }
+        }
+
+        // Copy template with selected type
+        await copyTemplate(TEMPLATE_PATH, targetPath, templateType);
+
+        const installCommand = getInstallCommand(packageManager);
+        const devCommand = getRunCommand(packageManager, 'dev');
+
+        console.log(`
+✨ Project created successfully!
+
+Next steps:
+1. cd ${projectName}
+2. ${installCommand}
+3. ${devCommand}
+        `);
+        return;
       } catch (error) {
         if (isExitPromptError(error)) {
           console.log('\nOperation cancelled');
@@ -316,48 +389,6 @@ export async function main() {
         }
         throw error;
       }
-
-      const targetPath = path.join(process.cwd(), projectName);
-
-      // Check if directory exists
-      try {
-        await fs.access(targetPath);
-        const overwrite = await confirm({
-          message: 'Directory already exists. Overwrite?',
-          default: false,
-        });
-
-        if (!overwrite) {
-          console.log('Operation cancelled');
-          return;
-        }
-      } catch (error: unknown) {
-        // Directory doesn't exist, which is what we want
-        if (
-          error instanceof Error &&
-          'code' in error &&
-          (error as NodeJS.ErrnoException).code !== 'ENOENT'
-        ) {
-          console.error('Error checking directory:', error.message);
-          throw error;
-        }
-      }
-
-      // Copy template
-      await copyTemplate(TEMPLATE_PATH, targetPath);
-
-      const installCommand = getInstallCommand(packageManager);
-      const devCommand = getRunCommand(packageManager, 'dev');
-
-      console.log(`
-✨ Project created successfully!
-
-Next steps:
-1. cd ${projectName}
-2. ${installCommand}
-3. ${devCommand}
-    `);
-      return;
     }
 
     // If we get here, package.json exists, so check project status
@@ -398,6 +429,48 @@ Next steps:
 
       try {
         packageManager = await getPackageManager(defaultPackageManager);
+        const templateType = await getTemplateType();
+        const targetPath = path.join(process.cwd(), projectName);
+
+        // Check if directory exists
+        try {
+          await fs.access(targetPath);
+          const overwrite = await confirm({
+            message: 'Directory already exists. Overwrite?',
+            default: false,
+          });
+
+          if (!overwrite) {
+            console.log('Operation cancelled');
+            return;
+          }
+        } catch (error: unknown) {
+          // Directory doesn't exist, which is what we want
+          if (
+            error instanceof Error &&
+            'code' in error &&
+            (error as NodeJS.ErrnoException).code !== 'ENOENT'
+          ) {
+            console.error('Error checking directory:', error.message);
+            throw error;
+          }
+        }
+
+        // Copy template with selected type
+        await copyTemplate(TEMPLATE_PATH, targetPath, templateType);
+
+        const installCommand = getInstallCommand(packageManager);
+        const devCommand = getRunCommand(packageManager, 'dev');
+
+        console.log(`
+✨ Project created successfully!
+
+Next steps:
+1. cd ${projectName}
+2. ${installCommand}
+3. ${devCommand}
+        `);
+        return;
       } catch (error) {
         if (isExitPromptError(error)) {
           console.log('\nOperation cancelled');
@@ -405,48 +478,6 @@ Next steps:
         }
         throw error;
       }
-
-      const targetPath = path.join(process.cwd(), projectName);
-
-      // Check if directory exists
-      try {
-        await fs.access(targetPath);
-        const overwrite = await confirm({
-          message: 'Directory already exists. Overwrite?',
-          default: false,
-        });
-
-        if (!overwrite) {
-          console.log('Operation cancelled');
-          return;
-        }
-      } catch (error: unknown) {
-        // Directory doesn't exist, which is what we want
-        if (
-          error instanceof Error &&
-          'code' in error &&
-          (error as NodeJS.ErrnoException).code !== 'ENOENT'
-        ) {
-          console.error('Error checking directory:', error.message);
-          throw error;
-        }
-      }
-
-      // Copy template
-      await copyTemplate(TEMPLATE_PATH, targetPath);
-
-      const installCommand = getInstallCommand(packageManager);
-      const devCommand = getRunCommand(packageManager, 'dev');
-
-      console.log(`
-✨ Project created successfully!
-
-Next steps:
-1. cd ${projectName}
-2. ${installCommand}
-3. ${devCommand}
-      `);
-      return;
     }
 
     // If we're in an Astro project but Electron needs to be added/configured
