@@ -476,4 +476,125 @@ export default defineConfig({
       );
     });
   });
+
+  describe('Template Selection', () => {
+    it('should use JavaScript template when no TypeScript is detected', async () => {
+      // Mock package.json without TypeScript
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {},
+              devDependencies: {},
+            })
+          );
+        }
+        return Promise.resolve('');
+      });
+
+      vi.mocked(input).mockResolvedValue('new-project');
+      vi.mocked(select).mockResolvedValue('npm');
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      // Verify that the JavaScript template was copied
+      expect(fs.cp).toHaveBeenCalledWith(
+        expect.stringContaining('javascript'),
+        expect.any(String),
+        expect.any(Object)
+      );
+    });
+
+    it('should use TypeScript template when TypeScript is detected', async () => {
+      // Mock package.json with TypeScript
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {},
+              devDependencies: {
+                typescript: '^4.0.0',
+              },
+            })
+          );
+        }
+        return Promise.resolve('');
+      });
+
+      vi.mocked(input).mockResolvedValue('new-project');
+      vi.mocked(select).mockResolvedValue('npm');
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      // Verify that the TypeScript template was copied
+      expect(fs.cp).toHaveBeenCalledWith(
+        expect.stringContaining('typescript'),
+        expect.any(String),
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('Template Path', () => {
+    it('should use correct template path when creating new project', async () => {
+      // Mock no package.json
+      vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
+      vi.mocked(input).mockResolvedValueOnce('my-project');
+      vi.mocked(select).mockResolvedValueOnce('npm');
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      // Verify template path includes 'templates' directory
+      expect(fs.cp).toHaveBeenCalledWith(
+        expect.stringContaining('templates'),
+        expect.any(String),
+        expect.any(Object)
+      );
+    });
+
+    it('should use correct template path when adding electron files', async () => {
+      // Mock package.json with Astro but no Electron
+      vi.mocked(fs.access).mockImplementation((path) => {
+        if (path.toString().includes('electron/')) {
+          throw new Error('ENOENT'); // Make electron files not exist
+        }
+        return Promise.resolve(undefined); // Other files exist
+      });
+
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: { astro: '^1.0.0' },
+            })
+          );
+        }
+        if (path.toString().includes('astro.config')) {
+          return Promise.resolve(`
+            import { defineConfig } from 'astro/config';
+            export default defineConfig({});
+          `);
+        }
+        return Promise.resolve('');
+      });
+
+      vi.mocked(confirm).mockResolvedValue(true);
+      vi.mocked(select).mockResolvedValue('npm');
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      // Verify electron template path includes 'templates' directory
+      expect(fs.cp).toHaveBeenCalledWith(
+        expect.stringContaining(path.join('templates', 'electron')),
+        expect.any(String),
+        expect.any(Object)
+      );
+    });
+  });
 });

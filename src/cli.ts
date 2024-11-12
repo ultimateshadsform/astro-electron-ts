@@ -6,6 +6,7 @@ import { readFile, writeFile } from 'fs/promises';
 import { detect } from 'detect-package-manager';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const TEMPLATE_PATH = path.join(__dirname, '..', '..', 'templates');
 
 type PackageManager = 'npm' | 'yarn' | 'pnpm' | 'bun';
 
@@ -25,7 +26,12 @@ async function detectPackageManager(): Promise<PackageManager> {
 
 async function copyTemplate(templatePath: string, targetPath: string) {
   try {
-    await fs.cp(templatePath, targetPath, { recursive: true });
+    const isJS = await isJavaScriptProject();
+    const templateDir = path.join(
+      templatePath,
+      isJS ? 'javascript' : 'typescript'
+    );
+    await fs.cp(templateDir, targetPath, { recursive: true });
   } catch (error) {
     console.error(
       'Error copying template:',
@@ -257,6 +263,26 @@ async function addElectronIntegration(): Promise<void> {
   }
 }
 
+// Add this function to detect if it's a JavaScript project
+async function isJavaScriptProject(): Promise<boolean> {
+  try {
+    const packageJsonPath = path.join(process.cwd(), 'package.json');
+    const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
+    const packageJson = JSON.parse(packageJsonContent);
+
+    // Check if typescript is in dependencies or devDependencies
+    const hasTypeScript = !!(
+      packageJson.dependencies?.typescript ||
+      packageJson.devDependencies?.typescript
+    );
+
+    return !hasTypeScript;
+  } catch {
+    // If we can't read package.json, default to JavaScript
+    return true;
+  }
+}
+
 export async function main() {
   try {
     const defaultPackageManager = await detectPackageManager();
@@ -318,8 +344,7 @@ export async function main() {
       }
 
       // Copy template
-      const templatePath = path.join(__dirname, '..', '..', 'template');
-      await copyTemplate(templatePath, targetPath);
+      await copyTemplate(TEMPLATE_PATH, targetPath);
 
       const installCommand = getInstallCommand(packageManager);
       const devCommand = getRunCommand(packageManager, 'dev');
@@ -408,8 +433,7 @@ Next steps:
       }
 
       // Copy template
-      const templatePath = path.join(__dirname, '..', '..', 'template');
-      await copyTemplate(templatePath, targetPath);
+      await copyTemplate(TEMPLATE_PATH, targetPath);
 
       const installCommand = getInstallCommand(packageManager);
       const devCommand = getRunCommand(packageManager, 'dev');
@@ -467,14 +491,13 @@ Next steps:
         return;
       }
 
-      const templatePath = path.join(__dirname, '..', '..', 'template');
       const currentDir = process.cwd();
 
       // Copy electron files if they're missing
       if (!projectStatus.electronFilesExist) {
         console.log('📁 Adding Electron files...');
         await copyTemplate(
-          path.join(templatePath, 'electron'),
+          path.join(TEMPLATE_PATH, 'electron'),
           path.join(currentDir, 'electron')
         );
       }
