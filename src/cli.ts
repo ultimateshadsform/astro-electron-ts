@@ -524,8 +524,13 @@ Next steps:
         console.log('ℹ️  Main field missing in package.json');
       }
       if (!projectStatus.electronFilesExist) {
+        const isJS = await isJavaScriptProject();
+        const mainPath = isJS ? 'electron/main.js' : 'dist-electron/main.js';
+        const preloadPath = isJS
+          ? 'electron/preload.js'
+          : 'dist-electron/preload.js';
         console.log(
-          'ℹ️  Required Electron files missing (electron/main.ts and/or electron/preload.ts)'
+          `ℹ️  Required Electron files missing (${mainPath} and/or ${preloadPath})`
         );
       }
 
@@ -570,7 +575,9 @@ Next steps:
         try {
           const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
           const packageJson = JSON.parse(packageJsonContent);
-          packageJson.main = 'dist-electron/main.js';
+          packageJson.main = (await isJavaScriptProject())
+            ? 'electron/main.js'
+            : 'dist-electron/main.js';
           await writeFile(
             packageJsonPath,
             JSON.stringify(packageJson, null, 2)

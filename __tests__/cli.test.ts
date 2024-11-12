@@ -873,4 +873,91 @@ describe('CLI', () => {
       );
     });
   });
+
+  describe('Package.json Configuration', () => {
+    it('should set correct main field for TypeScript projects', async () => {
+      // Mock package.json with TypeScript
+      vi.mocked(fs.access).mockImplementation((path) => {
+        if (path.toString().includes('electron/')) {
+          throw new Error('ENOENT'); // Make electron files not exist
+        }
+        return Promise.resolve(undefined);
+      });
+
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {
+                astro: '^1.0.0',
+                typescript: '^4.0.0',
+              },
+            })
+          );
+        }
+        if (path.toString().includes('astro.config')) {
+          return Promise.resolve(`
+            import { defineConfig } from 'astro/config';
+            export default defineConfig({});
+          `);
+        }
+        return Promise.resolve('');
+      });
+
+      vi.mocked(confirm).mockResolvedValue(true);
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      // Get the last writeFile call arguments
+      const writeFileCalls = vi.mocked(writeFile).mock.calls;
+      const lastWriteFileCall = writeFileCalls[writeFileCalls.length - 1];
+
+      // Parse the JSON to verify the main field
+      const writtenContent = JSON.parse(lastWriteFileCall[1] as string);
+      expect(writtenContent.main).toBe('dist-electron/main.js');
+    });
+
+    it('should set correct main field for JavaScript projects', async () => {
+      // Mock package.json without TypeScript
+      vi.mocked(fs.access).mockImplementation((path) => {
+        if (path.toString().includes('electron/')) {
+          throw new Error('ENOENT'); // Make electron files not exist
+        }
+        return Promise.resolve(undefined);
+      });
+
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {
+                astro: '^1.0.0',
+              },
+            })
+          );
+        }
+        if (path.toString().includes('astro.config')) {
+          return Promise.resolve(`
+            import { defineConfig } from 'astro/config';
+            export default defineConfig({});
+          `);
+        }
+        return Promise.resolve('');
+      });
+
+      vi.mocked(confirm).mockResolvedValue(true);
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      // Get the last writeFile call arguments
+      const writeFileCalls = vi.mocked(writeFile).mock.calls;
+      const lastWriteFileCall = writeFileCalls[writeFileCalls.length - 1];
+
+      // Parse the JSON to verify the main field
+      const writtenContent = JSON.parse(lastWriteFileCall[1] as string);
+      expect(writtenContent.main).toBe('electron/main.js');
+    });
+  });
 });
