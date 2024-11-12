@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { input, select, confirm } from '@inquirer/prompts';
+import { select, confirm } from '@inquirer/prompts';
 import fs from 'fs/promises';
 import path from 'path';
 import { readFile, writeFile } from 'fs/promises';
@@ -11,438 +11,249 @@ vi.mock('@inquirer/prompts');
 vi.mock('fs/promises');
 vi.mock('path');
 vi.mock('child_process');
-vi.mock('detect-package-manager', () => ({
-  detect: vi.fn().mockResolvedValue('npm'),
-}));
-
-// Mock console methods
-const mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
-const mockConsoleError = vi
-  .spyOn(console, 'error')
-  .mockImplementation(() => {});
+vi.mock('detect-package-manager');
 
 describe('CLI', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    vi.mocked(path.join).mockImplementation((...args) => args.join('/'));
 
-    // Mock readFile to return valid package.json content
+    // Default mocks
+    vi.mocked(path.join).mockImplementation((...args) => args.join('/'));
+    vi.mocked(detect).mockResolvedValue('npm');
     vi.mocked(readFile).mockResolvedValue(
       JSON.stringify({
         name: 'test-project',
-        scripts: {
-          dev: 'astro dev',
-        },
+        dependencies: {},
+        devDependencies: {},
       })
     );
+    vi.mocked(writeFile).mockResolvedValue(undefined);
+    vi.mocked(execSync).mockImplementation(() => Buffer.from(''));
+
+    // Mock console methods
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
     vi.resetAllMocks();
   });
 
+  describe('Project Detection', () => {
+    it('should detect Astro + Electron project correctly', async () => {
+      // Mock a fully configured project
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          name: 'test-project',
+          main: 'dist-electron/main.js',
+          dependencies: { electron: '^1.0.0' },
+          devDependencies: { astro: '^1.0.0' },
+        })
+      );
+
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      expect(console.log).toHaveBeenCalledWith(
+        '✨ Astro + Electron project detected!'
+      );
+      expect(console.log).toHaveBeenCalledWith(
+        "You're all set! Run your dev command to get started."
+      );
+    });
+
+    it('should detect missing Electron files', async () => {
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          dependencies: { electron: '^1.0.0' },
+          devDependencies: { astro: '^1.0.0' },
+          main: 'dist-electron/main.js',
+        })
+      );
+
+      // Mock file checks to fail
+      vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT'));
+      vi.mocked(confirm).mockResolvedValue(true);
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('Required Electron files missing')
+      );
+    });
+
+    it('should detect missing main field', async () => {
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          dependencies: { electron: '^1.0.0' },
+          devDependencies: { astro: '^1.0.0' },
+        })
+      );
+
+      vi.mocked(confirm).mockResolvedValue(true);
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('Main field missing in package.json')
+      );
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle file system errors gracefully', async () => {
+      // Mock readFile to fail with a file system error
+      const error = new Error('Permission denied') as NodeJS.ErrnoException;
+      error.code = 'EACCES'; // Now TypeScript knows this is allowed
+      vi.mocked(readFile).mockRejectedValue(error);
+      vi.mocked(fs.access).mockRejectedValue(error);
+
+      const { main } = await import('../src/cli');
+      await expect(main()).rejects.toThrow('Permission denied');
+    });
+
+    it('should handle package.json parse errors', async () => {
+      // Mock readFile to return invalid JSON
+      vi.mocked(readFile).mockResolvedValue('{ invalid json }');
+      vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT'));
+
+      const { main } = await import('../src/cli');
+      await expect(main()).rejects.toThrow('Invalid package.json format');
+    });
+
+    it('should handle dependency installation errors', async () => {
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          devDependencies: { astro: '^1.0.0' },
+        })
+      );
+
+      vi.mocked(confirm).mockResolvedValue(true);
+      vi.mocked(execSync).mockImplementationOnce(() => {
+        throw new Error('Installation failed');
+      });
+
+      const { main } = await import('../src/cli');
+      await expect(main()).rejects.toThrow('Installation failed');
+    });
+  });
+
+  describe('Auto-configuration', () => {
+    it('should only add main field if everything else exists', async () => {
+      // Mock Astro + Electron installed but missing main field
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          dependencies: { electron: '^1.0.0' },
+          devDependencies: { astro: '^1.0.0' },
+        })
+      );
+
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(confirm).mockResolvedValue(true);
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      expect(writeFile).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('dist-electron/main.js')
+      );
+      expect(fs.cp).not.toHaveBeenCalled();
+      expect(execSync).not.toHaveBeenCalled();
+    });
+
+    it('should only copy electron files if missing', async () => {
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          main: 'dist-electron/main.js',
+          dependencies: { electron: '^1.0.0' },
+          devDependencies: { astro: '^1.0.0' },
+        })
+      );
+
+      vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT'));
+      vi.mocked(confirm).mockResolvedValue(true);
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      expect(fs.cp).toHaveBeenCalled();
+      expect(writeFile).not.toHaveBeenCalled();
+      expect(execSync).not.toHaveBeenCalled();
+    });
+
+    it('should install electron if not present', async () => {
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          main: 'dist-electron/main.js',
+          devDependencies: { astro: '^1.0.0' },
+        })
+      );
+
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(confirm).mockResolvedValue(true);
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      expect(execSync).toHaveBeenCalledWith(
+        expect.stringContaining('electron'),
+        expect.any(Object)
+      );
+    });
+  });
+
   describe('Package Manager Detection', () => {
-    beforeEach(() => {
-      // Clear the user agent before each test
-      delete process.env.npm_config_user_agent;
-    });
-
-    it('should default to npm when no user agent is present', async () => {
-      vi.mocked(select).mockResolvedValueOnce('create');
-      vi.mocked(input).mockResolvedValueOnce('my-project');
-      vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
-      vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('npm install')
+    it('should use detected package manager without prompting', async () => {
+      vi.mocked(detect).mockResolvedValue('pnpm');
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          devDependencies: { astro: '^1.0.0' },
+        })
       );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('npm run dev')
+
+      vi.mocked(confirm).mockResolvedValue(true);
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      expect(select).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Which package manager would you like to use?',
+        })
       );
-    });
-
-    it('should detect Bun', async () => {
-      vi.mocked(detect).mockResolvedValueOnce('bun');
-
-      const selectMock = vi.mocked(select);
-      selectMock.mockResolvedValueOnce('create').mockResolvedValueOnce('bun');
-
-      vi.mocked(input).mockResolvedValueOnce('my-project');
-      vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
-      vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      const consoleOutput = mockConsoleLog.mock.calls
-        .map((call) => call[0])
-        .join('\n');
-      expect(consoleOutput).toContain('bun install');
-      expect(consoleOutput).toContain('bun run dev');
-    });
-
-    it('should detect pnpm', async () => {
-      vi.mocked(detect).mockResolvedValueOnce('pnpm');
-
-      const selectMock = vi.mocked(select);
-      selectMock.mockResolvedValueOnce('create').mockResolvedValueOnce('pnpm');
-
-      vi.mocked(input).mockResolvedValueOnce('my-project');
-      vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
-      vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      const consoleOutput = mockConsoleLog.mock.calls
-        .map((call) => call[0])
-        .join('\n');
-      expect(consoleOutput).toContain('pnpm install');
-      expect(consoleOutput).toContain('pnpm run dev');
-    });
-
-    it('should detect Yarn', async () => {
-      vi.mocked(detect).mockResolvedValueOnce('yarn');
-
-      const selectMock = vi.mocked(select);
-      selectMock.mockResolvedValueOnce('create').mockResolvedValueOnce('yarn');
-
-      vi.mocked(input).mockResolvedValueOnce('my-project');
-      vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
-      vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      const consoleOutput = mockConsoleLog.mock.calls
-        .map((call) => call[0])
-        .join('\n');
-      expect(consoleOutput).toContain('yarn');
-      expect(consoleOutput).toContain('yarn dev');
-    });
-
-    it('should default to npm', async () => {
-      process.env.npm_config_user_agent = 'something-else/1.0.0';
-
-      vi.mocked(select).mockResolvedValueOnce('create');
-      vi.mocked(input).mockResolvedValueOnce('my-project');
-      vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
-      vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('npm install')
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('npm run dev')
-      );
-    });
-
-    it('should use correct install command for npm', async () => {
-      vi.mocked(detect).mockResolvedValueOnce('npm');
-      vi.mocked(select)
-        .mockResolvedValueOnce('add')
-        .mockResolvedValueOnce('npm');
-      vi.mocked(confirm).mockResolvedValueOnce(true);
-      vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      const execSyncMock = vi.mocked(execSync);
-      expect(execSyncMock).toHaveBeenCalledWith(
-        'npm install electron',
+      expect(execSync).toHaveBeenCalledWith(
+        expect.stringContaining('pnpm add'),
         expect.any(Object)
       );
     });
 
-    it('should use correct install command for yarn', async () => {
-      vi.mocked(detect).mockResolvedValueOnce('yarn');
-      vi.mocked(select)
-        .mockResolvedValueOnce('add')
-        .mockResolvedValueOnce('yarn');
-      vi.mocked(confirm).mockResolvedValueOnce(true);
-      vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
+    it('should prompt for package manager only when detection defaults to npm', async () => {
+      vi.mocked(detect).mockResolvedValue('npm');
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          devDependencies: { astro: '^1.0.0' },
+        })
+      );
+
+      vi.mocked(confirm).mockResolvedValue(true);
+      vi.mocked(select).mockResolvedValueOnce('pnpm');
 
       const { main } = await import('../src/cli');
       await main();
 
-      const execSyncMock = vi.mocked(execSync);
-      expect(execSyncMock).toHaveBeenCalledWith(
-        'yarn add electron',
-        expect.any(Object)
+      expect(select).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Which package manager would you like to use?',
+        })
       );
     });
-
-    it('should use correct install command for pnpm', async () => {
-      vi.mocked(detect).mockResolvedValueOnce('pnpm');
-      vi.mocked(select)
-        .mockResolvedValueOnce('add')
-        .mockResolvedValueOnce('pnpm');
-      vi.mocked(confirm).mockResolvedValueOnce(true);
-      vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      const execSyncMock = vi.mocked(execSync);
-      expect(execSyncMock).toHaveBeenCalledWith(
-        'pnpm add electron',
-        expect.any(Object)
-      );
-    });
-
-    it('should use correct install command for bun', async () => {
-      vi.mocked(detect).mockResolvedValueOnce('bun');
-      vi.mocked(select)
-        .mockResolvedValueOnce('add')
-        .mockResolvedValueOnce('bun');
-      vi.mocked(confirm).mockResolvedValueOnce(true);
-      vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      const execSyncMock = vi.mocked(execSync);
-      expect(execSyncMock).toHaveBeenCalledWith(
-        'bun add electron',
-        expect.any(Object)
-      );
-    });
-
-    it('should use correct run command for npm', async () => {
-      vi.mocked(detect).mockResolvedValueOnce('npm');
-      vi.mocked(select)
-        .mockResolvedValueOnce('create')
-        .mockResolvedValueOnce('npm');
-      vi.mocked(input).mockResolvedValueOnce('my-project');
-      vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
-      vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('npm run dev')
-      );
-    });
-
-    it('should use correct run command for yarn', async () => {
-      vi.mocked(detect).mockResolvedValueOnce('yarn');
-
-      // Mock both select calls explicitly
-      const selectMock = vi.mocked(select);
-      selectMock
-        .mockResolvedValueOnce('create') // First call - action selection
-        .mockResolvedValueOnce('yarn'); // Second call - package manager selection
-
-      vi.mocked(input).mockResolvedValueOnce('my-project');
-      vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
-      vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      // Check the actual console output
-      const consoleOutput = mockConsoleLog.mock.calls.join('\n');
-      expect(consoleOutput).toContain('yarn dev');
-    });
-  });
-
-  it('should create a new project successfully', async () => {
-    // Mock user inputs
-    vi.mocked(select).mockResolvedValueOnce('create');
-    vi.mocked(input).mockResolvedValueOnce('my-project');
-    vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT')); // Directory doesn't exist
-    vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-    const { main } = await import('../src/cli');
-    await main();
-
-    expect(select).toHaveBeenCalledWith({
-      message: 'What would you like to do?',
-      choices: [
-        { value: 'create', name: 'Create new Astro + Electron project' },
-        { value: 'add', name: 'Add Electron to existing Astro project' },
-      ],
-    });
-
-    expect(input).toHaveBeenCalledWith({
-      message: 'What is your project name?',
-      default: 'astro-electron-app',
-    });
-
-    expect(fs.cp).toHaveBeenCalled();
-    expect(mockConsoleLog).toHaveBeenCalledWith(
-      expect.stringContaining('Project created successfully!')
-    );
-  });
-
-  it('should handle existing directory with overwrite confirmation', async () => {
-    vi.mocked(select).mockResolvedValueOnce('create');
-    vi.mocked(input).mockResolvedValueOnce('existing-project');
-    vi.mocked(fs.access).mockResolvedValueOnce(undefined); // Directory exists
-    vi.mocked(confirm).mockResolvedValueOnce(true); // User confirms overwrite
-    vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-    const { main } = await import('../src/cli');
-    await main();
-
-    expect(confirm).toHaveBeenCalledWith({
-      message: 'Directory already exists. Overwrite?',
-      default: false,
-    });
-    expect(fs.cp).toHaveBeenCalled();
-  });
-
-  it('should cancel operation when user declines overwrite', async () => {
-    vi.mocked(select).mockResolvedValueOnce('create');
-    vi.mocked(input).mockResolvedValueOnce('existing-project');
-    vi.mocked(fs.access).mockResolvedValueOnce(undefined); // Directory exists
-    vi.mocked(confirm).mockResolvedValueOnce(false); // User declines overwrite
-
-    const { main } = await import('../src/cli');
-    await main();
-
-    expect(mockConsoleLog).toHaveBeenCalledWith('Operation cancelled');
-    expect(fs.cp).not.toHaveBeenCalled();
-  });
-
-  it('should add Electron to existing project', async () => {
-    // Mock both select calls explicitly
-    const selectMock = vi.mocked(select);
-    selectMock
-      .mockResolvedValueOnce('add') // First call - action selection
-      .mockResolvedValueOnce('npm'); // Second call - package manager selection
-
-    vi.mocked(confirm).mockResolvedValueOnce(true);
-    vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-    const { main } = await import('../src/cli');
-    await main();
-
-    expect(confirm).toHaveBeenCalledWith({
-      message:
-        'This will add Electron to your existing Astro project. Continue?',
-      default: true,
-    });
-  });
-
-  it('should handle file system errors gracefully', async () => {
-    vi.mocked(select).mockResolvedValueOnce('create');
-    vi.mocked(input).mockResolvedValueOnce('my-project');
-    vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
-    vi.mocked(fs.cp).mockRejectedValueOnce(new Error('Permission denied'));
-
-    const { main } = await import('../src/cli');
-
-    await expect(main()).rejects.toThrow('Permission denied');
-
-    expect(mockConsoleError).toHaveBeenCalledWith(
-      'Error copying template:',
-      'Permission denied'
-    );
-  });
-});
-
-describe('Adding Electron to existing project', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    delete process.env.npm_config_user_agent;
-
-    vi.mocked(readFile).mockResolvedValue(
-      JSON.stringify({
-        name: 'test-project',
-        scripts: {
-          dev: 'astro dev',
-        },
-      })
-    );
-    vi.mocked(writeFile).mockResolvedValue(undefined);
-    vi.mocked(execSync).mockImplementation(() => Buffer.from(''));
-    vi.mocked(path.join).mockImplementation((...args) => args.join('/'));
-  });
-
-  it('should modify package.json and install dependencies', async () => {
-    // Set npm as the package manager
-    process.env.npm_config_user_agent = 'npm/8.0.0';
-
-    vi.mocked(select).mockResolvedValueOnce('add');
-    vi.mocked(confirm).mockResolvedValueOnce(true);
-    vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-    const { main } = await import('../src/cli');
-    await main();
-
-    // Check if package.json was modified correctly
-    const writeCalls = vi.mocked(writeFile).mock.calls;
-    expect(writeCalls[0][1]).toContain('dist-electron/main.js');
-
-    // Verify dependency installation commands
-    const execCalls = vi.mocked(execSync).mock.calls;
-    expect(execCalls[0][0]).toBe('npm install electron');
-    expect(execCalls[1][0]).toBe('npm install -D @types/electron');
-    expect(execCalls[2][0]).toBe('npm install -D electron-builder');
-  });
-
-  it('should handle package.json read error', async () => {
-    vi.mocked(select).mockResolvedValueOnce('add');
-    vi.mocked(confirm).mockResolvedValueOnce(true);
-    vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-    vi.mocked(readFile).mockRejectedValueOnce(
-      new Error('Failed to read package.json')
-    );
-
-    const { main } = await import('../src/cli');
-    await expect(main()).rejects.toThrow('Failed to read package.json');
-  });
-
-  it('should handle dependency installation errors', async () => {
-    vi.mocked(select).mockResolvedValueOnce('add');
-    vi.mocked(confirm).mockResolvedValueOnce(true);
-    vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-    vi.mocked(execSync).mockImplementationOnce(() => {
-      throw new Error('Failed to install dependency');
-    });
-
-    const { main } = await import('../src/cli');
-    await expect(main()).rejects.toThrow('Failed to install dependency');
-  });
-
-  it('should use correct package manager for installations', async () => {
-    // Mock both select calls explicitly
-    const selectMock = vi.mocked(select);
-    selectMock
-      .mockResolvedValueOnce('add') // First call - action selection
-      .mockResolvedValueOnce('yarn'); // Second call - package manager selection
-
-    vi.mocked(confirm).mockResolvedValueOnce(true);
-    vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-
-    const { main } = await import('../src/cli');
-    await main();
-
-    const execCalls = vi.mocked(execSync).mock.calls;
-    expect(execCalls[0][0]).toBe('yarn add electron');
-    expect(execCalls[1][0]).toBe('yarn add -D @types/electron');
-    expect(execCalls[2][0]).toBe('yarn add -D electron-builder');
-  });
-
-  it('should handle package.json write error', async () => {
-    vi.mocked(select).mockResolvedValueOnce('add');
-    vi.mocked(confirm).mockResolvedValueOnce(true);
-    vi.mocked(fs.cp).mockResolvedValueOnce(undefined);
-    vi.mocked(writeFile).mockRejectedValueOnce(
-      new Error('Failed to write package.json')
-    );
-
-    const { main } = await import('../src/cli');
-    await expect(main()).rejects.toThrow('Failed to write package.json');
   });
 });
