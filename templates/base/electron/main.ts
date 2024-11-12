@@ -1,4 +1,4 @@
-// /electron/main.ts
+// electron/main.ts
 import { app, BrowserWindow } from 'electron';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -47,5 +47,4 @@ app.on('activate', () => {
     createWindow();
   }
 });
-
 app.whenReady().then(createWindow);

@@ -1,9 +1,13 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
+import util from 'util';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = path.join(__dirname, '..', 'templates');
+
+const execPromise = util.promisify(exec);
 
 interface PackageJson {
   name?: string;
@@ -31,6 +35,17 @@ async function checkTemplates() {
     const mainPackageJson: PackageJson = JSON.parse(
       await fs.readFile(mainPackageJsonPath, 'utf-8')
     );
+
+    // Fetch the latest version of astro-electron-ts from npm
+    const { stdout } = await execPromise('npm view astro-electron-ts version');
+    const npmVersion = stdout.trim();
+
+    // Check if the version matches the main package version
+    if (mainPackageJson.version === npmVersion) {
+      errors.push(
+        `Main package version matches the npm version of astro-electron-ts (${npmVersion}). They should not match.`
+      );
+    }
 
     // Required fields
     if (!packageJson.scripts?.dev) {
@@ -157,6 +172,12 @@ async function checkTemplates() {
     }
   }
 
+  try {
+    await fs.access(path.join(__dirname, '..', 'dist'));
+  } catch {
+    errors.push(`Main package missing dist directory`);
+  }
+
   return errors;
 }
 
@@ -170,6 +191,7 @@ async function main() {
     process.exit(1);
   } else {
     console.log('\n✅ All checks passed!');
+    process.exit(0);
   }
 }
 

@@ -74,7 +74,7 @@ dist-electron/
 5. Create electron files:
 
 ```typescript
-// /electron/main.ts
+// electron/main.ts
 import { app, BrowserWindow } from 'electron';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -131,7 +131,7 @@ app.whenReady().then(createWindow);
 ```
 
 ```typescript
-// /electron/preload.ts
+// electron/preload.ts
 console.log('preload.ts');
 ```
 
@@ -144,11 +144,11 @@ export default defineConfig({
   integrations: [
     electron({
       main: {
-        entry: '/electron/main.ts', // Path to your Electron main file
+        entry: 'electron/main.ts', // Path to your Electron main file
         vite: {}, // Vite-specific configurations
       },
       preload: {
-        input: '/electron/preload.ts', // Path to your Electron preload file
+        input: 'electron/preload.ts', // Path to your Electron preload file
         vite: {}, // Vite-specific configurations
       },
       renderer: {

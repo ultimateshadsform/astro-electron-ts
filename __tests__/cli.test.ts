@@ -65,7 +65,7 @@ describe('CLI', () => {
         .mockResolvedValueOnce('npm') // Package manager selection
         .mockResolvedValueOnce('typescript'); // Language selection
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       // Update expectation to use BASE_TEMPLATE_PATH
@@ -85,7 +85,7 @@ describe('CLI', () => {
       vi.mocked(fs.access).mockResolvedValueOnce(undefined);
       vi.mocked(confirm).mockResolvedValueOnce(true);
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       expect(fs.cp).toHaveBeenCalled();
@@ -97,7 +97,7 @@ describe('CLI', () => {
       vi.mocked(fs.access).mockResolvedValueOnce(undefined);
       vi.mocked(confirm).mockResolvedValueOnce(false);
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       expect(fs.cp).not.toHaveBeenCalled();
@@ -145,7 +145,7 @@ describe('CLI', () => {
         return Promise.resolve(undefined);
       });
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       expect(console.log).toHaveBeenCalledWith(
@@ -180,7 +180,7 @@ describe('CLI', () => {
 
       vi.mocked(confirm).mockResolvedValue(true);
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       // Check for both messages in order
@@ -204,7 +204,7 @@ describe('CLI', () => {
       vi.mocked(input).mockResolvedValue('new-project');
       vi.mocked(select).mockResolvedValue('npm');
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       expect(fs.cp).toHaveBeenCalled();
@@ -236,7 +236,7 @@ describe('CLI', () => {
         return Promise.reject(new Error('File not found'));
       });
 
-      const { isElectronProject } = await import('../src/cli');
+      const { isElectronProject } = await import('../bin/cli');
       const result = await isElectronProject();
 
       expect(result).toBe(false);
@@ -268,7 +268,7 @@ describe('CLI', () => {
         return Promise.reject(new Error('File not found'));
       });
 
-      const { isElectronProject } = await import('../src/cli');
+      const { isElectronProject } = await import('../bin/cli');
       const result = await isElectronProject();
 
       expect(result).toBe(true);
@@ -281,7 +281,7 @@ describe('CLI', () => {
       vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT')); // No package.json
       vi.mocked(input).mockResolvedValue('new-project');
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       expect(select).not.toHaveBeenCalledWith(
@@ -297,7 +297,7 @@ describe('CLI', () => {
       vi.mocked(input).mockResolvedValue('new-project');
       vi.mocked(select).mockResolvedValue('pnpm');
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       expect(select).toHaveBeenCalledWith(
@@ -325,7 +325,7 @@ describe('CLI', () => {
         throw installError;
       });
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
 
       await main().catch(() => {
         console.error('Installation failed');
@@ -354,7 +354,7 @@ describe('CLI', () => {
       exitError.code = 'EXIT';
       vi.mocked(select).mockRejectedValueOnce(exitError);
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       expect(console.log).toHaveBeenCalledWith('\nOperation cancelled');
@@ -374,7 +374,7 @@ describe('CLI', () => {
       exitError.code = 'EXIT';
       vi.mocked(confirm).mockRejectedValueOnce(exitError);
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       expect(console.log).toHaveBeenCalledWith('\nOperation cancelled');
@@ -403,7 +403,7 @@ describe('CLI', () => {
         return Promise.resolve('');
       });
 
-      const { addElectronIntegration } = await import('../src/cli');
+      const { addElectronIntegration } = await import('../bin/cli');
       await addElectronIntegration();
 
       // Verify simple electron config is used
@@ -439,7 +439,7 @@ describe('CLI', () => {
         return Promise.resolve('');
       });
 
-      const { addElectronIntegration } = await import('../src/cli');
+      const { addElectronIntegration } = await import('../bin/cli');
       await addElectronIntegration();
 
       // Verify full config with paths is used
@@ -475,7 +475,7 @@ describe('CLI', () => {
       });
       vi.mocked(confirm).mockResolvedValue(true);
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       // Verify core dependencies are installed
@@ -521,7 +521,7 @@ describe('CLI', () => {
         return Promise.resolve('');
       });
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       // Verify base template is copied
@@ -567,7 +567,7 @@ describe('CLI', () => {
         return Promise.resolve('');
       });
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       // Verify base template is copied
@@ -613,7 +613,7 @@ describe('CLI', () => {
         return promise as any;
       });
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       expect(console.log).toHaveBeenCalledWith('\nOperation cancelled');
@@ -629,7 +629,7 @@ describe('CLI', () => {
         .mockResolvedValueOnce('npm')
         .mockResolvedValueOnce('typescript');
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       expect(fs.cp).toHaveBeenCalledWith(
@@ -660,7 +660,7 @@ describe('CLI', () => {
 
       vi.mocked(confirm).mockResolvedValue(true);
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       expect(fs.cp).toHaveBeenCalledWith(
@@ -693,7 +693,7 @@ describe('CLI', () => {
 
       vi.mocked(confirm).mockResolvedValue(true);
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       const writeFileCalls = vi.mocked(writeFile).mock.calls;
@@ -729,7 +729,7 @@ describe('CLI', () => {
         return Promise.resolve('');
       });
 
-      const { main } = await import('../src/cli');
+      const { main } = await import('../bin/cli');
       await main();
 
       const writeFileCalls = vi.mocked(writeFile).mock.calls;
