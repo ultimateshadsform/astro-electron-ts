@@ -11,13 +11,18 @@
     "start": "astro dev",
     "build": "astro check && astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "electron:dev": "electron .",
+    "electron:build": "electron-builder"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",
     "astro": "^4.16.10",
-    "astro-electron-ts": "1.0.18",
+    "astro-electron-ts": "1.0.19",
     "electron": "^33.2.0",
     "typescript": "^5.6.3"
+  },
+  "devDependencies": {
+    "electron-builder": "^25.1.8"
   }
 }

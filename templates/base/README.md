@@ -1,4 +1,4 @@
-# Astro Starter Kit: Basics
+# Astro + Electron Starter Kit
 
 ```sh
 npm create astro@latest -- --template basics
@@ -10,16 +10,19 @@ npm create astro@latest -- --template basics
 
 > 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
 
-![just-the-basics](https://github.com/withastro/astro/assets/2244813/a0a5533c-a856-4198-8470-2d67b1d7c554)
+![astro-electron-ts](https://github.com/user-attachments/assets/91d3b3d4-76f1-43f7-b467-3cc93a324f31)
 
 ## 🚀 Project Structure
 
-Inside of your Astro project, you'll see the following folders and files:
+Inside of your Astro + Electron project, you'll see the following folders and files:
 
 ```text
 /
 ├── public/
 │   └── favicon.svg
+├── electron/
+│   ├── main.(js|ts)        # Electron main process
+│   └── preload.(js|ts)     # Preload script for IPC
 ├── src/
 │   ├── components/
 │   │   └── Card.astro
@@ -34,6 +37,11 @@ Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page
 
 There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
 
+The `electron/` directory contains all Electron-specific code:
+
+- `main.(js|ts)` handles the main process, window creation, and app lifecycle
+- `preload.(js|ts)` provides secure IPC communication between main and renderer processes
+
 Any static assets, like images, can be placed in the `public/` directory.
 
 ## 🧞 Commands
@@ -43,12 +51,24 @@ All commands are run from the root of the project, from a terminal:
 | Command                   | Action                                           |
 | :------------------------ | :----------------------------------------------- |
 | `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
+| `npm run dev`             | Starts local dev server and electron app         |
+| `npm run build`           | Build your production site and electron app      |
 | `npm run preview`         | Preview your build locally, before deploying     |
+| `npm run electron:dev`    | Run electron in development mode                 |
+| `npm run electron:build`  | Build electron app for production                |
 | `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
 | `npm run astro -- --help` | Get help using the Astro CLI                     |
 
+## ⚡ Electron Features
+
+This template comes with:
+
+- Secure IPC communication setup
+- Hot-reload support in development
+- Production build configuration
+- Basic window management
+- Cross-platform support
+
 ## 👀 Want to learn more?
 
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+Feel free to check [Astro documentation](https://docs.astro.build) or [Electron documentation](https://www.electronjs.org/docs/latest/), or jump into our [Discord server](https://astro.build/chat).
