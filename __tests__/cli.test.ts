@@ -618,9 +618,188 @@ export default defineConfig({
       const { main } = await import('../src/cli');
       await main();
 
-      // Verify electron template path includes 'templates' directory
+      // Update expectation to match the actual path structure
       expect(fs.cp).toHaveBeenCalledWith(
-        expect.stringContaining(path.join('templates', 'electron')),
+        expect.stringContaining(
+          path.join('templates', 'javascript', 'electron')
+        ),
+        expect.any(String),
+        expect.any(Object)
+      );
+    });
+
+    it('should use correct electron files based on project type', async () => {
+      // Mock package.json with Astro and TypeScript
+      vi.mocked(fs.access).mockImplementation((path) => {
+        if (path.toString().includes('electron/')) {
+          throw new Error('ENOENT'); // Make electron files not exist
+        }
+        return Promise.resolve(undefined); // Other files exist
+      });
+
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {
+                astro: '^1.0.0',
+                typescript: '^4.0.0',
+              },
+            })
+          );
+        }
+        if (path.toString().includes('astro.config')) {
+          return Promise.resolve(`
+            import { defineConfig } from 'astro/config';
+            export default defineConfig({});
+          `);
+        }
+        return Promise.resolve('');
+      });
+
+      vi.mocked(confirm).mockResolvedValue(true);
+      vi.mocked(select).mockResolvedValue('npm');
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      // Verify typescript electron files are copied
+      expect(fs.cp).toHaveBeenCalledWith(
+        expect.stringContaining(
+          path.join('templates', 'typescript', 'electron')
+        ),
+        expect.any(String),
+        expect.any(Object)
+      );
+    });
+
+    it('should use javascript electron files for js projects', async () => {
+      // Mock package.json with Astro but no TypeScript
+      vi.mocked(fs.access).mockImplementation((path) => {
+        if (path.toString().includes('electron/')) {
+          throw new Error('ENOENT'); // Make electron files not exist
+        }
+        return Promise.resolve(undefined); // Other files exist
+      });
+
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: { astro: '^1.0.0' },
+            })
+          );
+        }
+        if (path.toString().includes('astro.config')) {
+          return Promise.resolve(`
+            import { defineConfig } from 'astro/config';
+            export default defineConfig({});
+          `);
+        }
+        return Promise.resolve('');
+      });
+
+      vi.mocked(confirm).mockResolvedValue(true);
+      vi.mocked(select).mockResolvedValue('npm');
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      // Verify javascript electron files are copied
+      expect(fs.cp).toHaveBeenCalledWith(
+        expect.stringContaining(
+          path.join('templates', 'javascript', 'electron')
+        ),
+        expect.any(String),
+        expect.any(Object)
+      );
+    });
+
+    it('should use correct template path when adding electron files to TypeScript project', async () => {
+      // Mock package.json with Astro and TypeScript
+      vi.mocked(fs.access).mockImplementation((path) => {
+        if (path.toString().includes('electron/')) {
+          throw new Error('ENOENT'); // Make electron files not exist
+        }
+        return Promise.resolve(undefined); // Other files exist
+      });
+
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {
+                astro: '^1.0.0',
+                typescript: '^4.0.0', // TypeScript project
+              },
+            })
+          );
+        }
+        if (path.toString().includes('astro.config')) {
+          return Promise.resolve(`
+            import { defineConfig } from 'astro/config';
+            export default defineConfig({});
+          `);
+        }
+        return Promise.resolve('');
+      });
+
+      vi.mocked(confirm).mockResolvedValue(true);
+      vi.mocked(select).mockResolvedValue('npm');
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      // Verify TypeScript electron files are copied
+      expect(fs.cp).toHaveBeenCalledWith(
+        expect.stringContaining(
+          path.join('templates', 'typescript', 'electron')
+        ),
+        expect.any(String),
+        expect.any(Object)
+      );
+    });
+
+    it('should use correct template path when adding electron files to JavaScript project', async () => {
+      // Mock package.json with Astro but no TypeScript
+      vi.mocked(fs.access).mockImplementation((path) => {
+        if (path.toString().includes('electron/')) {
+          throw new Error('ENOENT'); // Make electron files not exist
+        }
+        return Promise.resolve(undefined); // Other files exist
+      });
+
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().endsWith('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {
+                astro: '^1.0.0',
+                // No TypeScript = JavaScript project
+              },
+            })
+          );
+        }
+        if (path.toString().includes('astro.config')) {
+          return Promise.resolve(`
+            import { defineConfig } from 'astro/config';
+            export default defineConfig({});
+          `);
+        }
+        return Promise.resolve('');
+      });
+
+      vi.mocked(confirm).mockResolvedValue(true);
+      vi.mocked(select).mockResolvedValue('npm');
+
+      const { main } = await import('../src/cli');
+      await main();
+
+      // Verify JavaScript electron files are copied
+      expect(fs.cp).toHaveBeenCalledWith(
+        expect.stringContaining(
+          path.join('templates', 'javascript', 'electron')
+        ),
         expect.any(String),
         expect.any(Object)
       );

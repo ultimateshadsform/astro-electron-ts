@@ -33,6 +33,17 @@ async function copyTemplate(
     const isJS = templateType
       ? templateType === 'javascript'
       : await isJavaScriptProject();
+
+    if (templatePath.endsWith('electron')) {
+      const sourceDir = path.join(
+        TEMPLATE_PATH,
+        isJS ? 'javascript' : 'typescript',
+        'electron'
+      );
+      await fs.cp(sourceDir, targetPath, { recursive: true });
+      return;
+    }
+
     const templateDir = path.join(
       templatePath,
       isJS ? 'javascript' : 'typescript'
