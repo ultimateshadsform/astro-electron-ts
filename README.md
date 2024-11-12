@@ -164,6 +164,10 @@ To use static assets (fonts, videos, etc.) in your Electron app:
 
 While this integration focuses on development setup, we recommend using [Electron Forge](https://www.electronforge.io/) for building and publishing your app.
 
+## TODO:
+
+- [ ] Add Electron file creation automatically if one does not have
+
 ## 📄 License
 
 MIT License - do whatever you want with it! 🎉
