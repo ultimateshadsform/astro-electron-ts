@@ -6,9 +6,10 @@ Build cross-platform desktop applications with Astro and Electron. This integrat
 
 ## ✨ Features
 
-- 🔌 Effortless integration of Electron with Astro projects
-- ⚡️ Automatic setup of the Electron environment during package installation
-- ⚙️ Customizable Electron configuration with sensible defaults
+- 🔌 Easy integration of Electron with Astro projects
+- ⚡️ Automatic integration with Electron
+  > You only have to add the integration to your `astro.config.ts` and add Electron files to your project
+- ⚙️ Customizable Electron configuration with defaults
 
 ## 🤔 Why astro-electron-ts?
 
