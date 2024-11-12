@@ -19,16 +19,6 @@ vi.mock('path');
 vi.mock('child_process');
 vi.mock('detect-package-manager');
 
-// Add this helper function at the top of the test file
-function createCancellablePromise<T>(
-  value: T | Error
-): Promise<T> & { cancel: () => void } {
-  const promise =
-    value instanceof Error ? Promise.reject(value) : Promise.resolve(value);
-  (promise as any).cancel = () => {};
-  return promise as any;
-}
-
 describe('CLI', () => {
   beforeEach(() => {
     vi.clearAllMocks();
