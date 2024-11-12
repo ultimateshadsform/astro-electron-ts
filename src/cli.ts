@@ -573,9 +573,8 @@ Next steps:
         try {
           const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
           const packageJson = JSON.parse(packageJsonContent);
-          // Always use dist-electron for both JS and TS
-          const isJS = await isJavaScriptProject();
-          packageJson.main = `dist-electron/main${isJS ? '.js' : '.ts'}`;
+          // Always use dist-electron.js for both JS and TS
+          packageJson.main = 'dist-electron/main.js';
           await writeFile(
             packageJsonPath,
             JSON.stringify(packageJson, null, 2)

@@ -915,7 +915,7 @@ describe('CLI', () => {
 
       // Parse the JSON to verify the main field
       const writtenContent = JSON.parse(lastWriteFileCall[1] as string);
-      expect(writtenContent.main).toBe('dist-electron/main.ts');
+      expect(writtenContent.main).toBe('dist-electron/main.js');
     });
 
     it('should set correct main field for JavaScript projects', async () => {
