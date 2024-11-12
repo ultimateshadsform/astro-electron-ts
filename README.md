@@ -7,31 +7,45 @@ Build cross-platform desktop applications with Astro and Electron. This integrat
 ## ✨ Features
 
 - 🔌 Easy integration of Electron with Astro projects
-- ⚡️ Automatic integration with Electron
-  > You only have to add the integration to your `astro.config.ts` and add Electron files to your project
+- ⚡️ Automatic CLI setup and configuration
 - ⚙️ Customizable Electron configuration with defaults
+- 🛠️ Support for both new projects and existing Astro projects
 
 ## 🤔 Why astro-electron-ts?
 
-- Actively maintained by the community and aim to support latest Electron versions and Astro.
-- Supports both TypeScript and JavaScript out of the box.
-- I aim to fix and close any issues as soon as possible.
+- Actively maintained by the community and aim to support latest Electron versions and Astro
+- Supports both TypeScript and JavaScript out of the box
+- I aim to fix and close any issues as soon as possible
 
-## 📦 Installation
+## 📦 Quick Start
 
-To install `astro-electron-ts`, run one of the following commands in your Astro project:
+### Using the CLI (Recommended)
+
+The easiest way to get started is using our CLI:
+
+```bash
+# You run the same command for both new and existing projects
+npx astro-electron-ts@latest
+```
+
+The CLI will:
+
+1. Auto-detect your project setup
+2. Install necessary dependencies using your preferred package manager
+3. Add required configuration files
+4. Set up Electron with TypeScript support
+
+### Manual Installation
+
+If you prefer to set things up manually, follow these steps:
+
+1. Install the dependencies:
 
 ```bash
 <package-manager> add astro-electron-ts electron
 ```
 
-## 🛠️ Setup
-
-Follow these steps to get your Electron app running:
-
-### 1️⃣ Add integration
-
-Add the `astro-electron-ts` integration to your `astro.config.ts`:
+2. Add the integration to your `astro.config.ts`:
 
 ```typescript
 import { defineConfig } from 'astro/config';
@@ -42,9 +56,7 @@ export default defineConfig({
 });
 ```
 
-### 2️⃣ Define entry point
-
-Add the entry point to your `package.json`:
+3. Add the entry point to your `package.json`:
 
 ```json
 {
@@ -52,18 +64,14 @@ Add the entry point to your `package.json`:
 }
 ```
 
-### 3️⃣ Update `.gitignore`
-
-Add the Electron build directory to your `.gitignore`:
+4. Add to your `.gitignore`:
 
 ```
 # Electron
 dist-electron/
 ```
 
-### 4️⃣ Create electron scripts
-
-Create the `/electron` directory in your project folder and add these files:
+5. Create electron files:
 
 ```typescript
 // /electron/main.ts
@@ -163,10 +171,6 @@ To use static assets (fonts, videos, etc.) in your Electron app:
 ## 🏗️ Building and Publishing
 
 While this integration focuses on development setup, we recommend using [Electron Forge](https://www.electronforge.io/) for building and publishing your app.
-
-## TODO:
-
-- [ ] Add Electron file creation automatically if one does not have
 
 ## 📄 License
 
