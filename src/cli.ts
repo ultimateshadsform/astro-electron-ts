@@ -2,34 +2,25 @@ import { input, select, confirm } from '@inquirer/prompts';
 import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
+import { readFile, writeFile } from 'fs/promises';
+import { detect } from 'detect-package-manager';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 type PackageManager = 'npm' | 'yarn' | 'pnpm' | 'bun';
 
-function detectPackageManager(): PackageManager {
-  const userAgent = process.env.npm_config_user_agent;
-
-  // If no user agent is found, return npm
-  if (!userAgent) {
+async function detectPackageManager(): Promise<PackageManager> {
+  try {
+    const pm = await detect();
+    return pm as PackageManager;
+  } catch (error) {
+    console.warn(
+      'Failed to detect package manager:',
+      error instanceof Error ? error.message : String(error),
+      '\nDefaulting to npm'
+    );
     return 'npm';
   }
-
-  // Check for specific package managers
-  if (userAgent.startsWith('bun')) {
-    return 'bun';
-  }
-
-  if (userAgent.includes('pnpm')) {
-    return 'pnpm';
-  }
-
-  if (userAgent.includes('yarn')) {
-    return 'yarn';
-  }
-
-  // Default to npm for any other case
-  return 'npm';
 }
 
 async function copyTemplate(templatePath: string, targetPath: string) {
@@ -75,7 +66,7 @@ function getRunCommand(packageManager: PackageManager, script: string): string {
 
 export async function main() {
   try {
-    const packageManager = detectPackageManager();
+    const defaultPackageManager = await detectPackageManager();
 
     const action = await select({
       message: 'What would you like to do?',
@@ -84,6 +75,18 @@ export async function main() {
         { value: 'add', name: 'Add Electron to existing Astro project' },
       ],
     });
+
+    // Ask for package manager preference
+    const packageManager = (await select({
+      message: 'Which package manager would you like to use?',
+      choices: [
+        { value: 'npm', name: 'npm', description: 'Node Package Manager' },
+        { value: 'yarn', name: 'yarn', description: 'Yarn' },
+        { value: 'pnpm', name: 'pnpm', description: 'pnpm' },
+        { value: 'bun', name: 'bun', description: 'Bun' },
+      ],
+      default: defaultPackageManager,
+    })) as PackageManager;
 
     if (action === 'create') {
       const projectName = await input({
@@ -155,16 +158,62 @@ Next steps:
         path.join(currentDir, 'electron')
       );
 
-      const installCommand = getInstallCommand(packageManager, 'electron');
+      // Read and modify package.json
+      const packageJsonPath = path.join(currentDir, 'package.json');
+      let packageJson;
+      try {
+        const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
+        packageJson = JSON.parse(packageJsonContent);
+
+        // Only add the main field
+        packageJson.main = 'dist-electron/main.js';
+
+        // Write back to package.json
+        await writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
+
+        // Install dependencies
+        console.log('Installing dependencies...');
+        const dependencies = ['electron'];
+        const devDependencies = ['@types/electron', 'electron-builder'];
+
+        // Install regular dependencies
+        for (const dep of dependencies) {
+          try {
+            const { execSync } = await import('child_process');
+            const installCmd = getInstallCommand(packageManager, dep);
+            console.log(`Running: ${installCmd}`);
+            execSync(installCmd, { stdio: 'inherit' });
+          } catch (error) {
+            console.error(`Failed to install ${dep}:`, error);
+            throw error;
+          }
+        }
+
+        // Install dev dependencies
+        for (const dep of devDependencies) {
+          try {
+            const { execSync } = await import('child_process');
+            const installCmd = getInstallCommand(packageManager, `-D ${dep}`);
+            console.log(`Running: ${installCmd}`);
+            execSync(installCmd, { stdio: 'inherit' });
+          } catch (error) {
+            console.error(`Failed to install ${dep}:`, error);
+            throw error;
+          }
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        throw error;
+      }
+
       const devCommand = getRunCommand(packageManager, 'dev');
 
       console.log(`
-✨ Electron added to your project!
+✨ Electron and dependencies have been added to your project!
 
 Next steps:
-  1. ${installCommand}
-  2. Add electron scripts to your package.json
-  3. ${devCommand}
+  1. Add electron scripts to your package.json
+  2. ${devCommand}
       `);
     }
   } catch (error) {
