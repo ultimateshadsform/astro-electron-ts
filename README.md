@@ -10,6 +10,12 @@ Build cross-platform desktop applications with Astro and Electron. This integrat
 - ⚡️ Automatic setup of the Electron environment during package installation
 - ⚙️ Customizable Electron configuration with sensible defaults
 
+## 🤔 Why astro-electron-ts?
+
+- Actively maintained by the community and aim to support latest Electron versions and Astro.
+- Supports both TypeScript and JavaScript out of the box.
+- I aim to fix and close any issues as soon as possible.
+
 ## 📦 Installation
 
 To install `astro-electron-ts`, run one of the following commands in your Astro project:
