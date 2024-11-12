@@ -1,8 +1,8 @@
 # 🚀 astro-electron-ts
 
-![preview](https://github.com/user-attachments/assets/91d3b3d4-76f1-43f7-b467-3cc93a324f31)
-
 Build cross-platform desktop applications with Astro and Electron. This integration seamlessly incorporates Electron into your Astro projects, handling all the setup and configuration automatically so you can focus on building your app.
+
+![preview](https://github.com/user-attachments/assets/91d3b3d4-76f1-43f7-b467-3cc93a324f31)
 
 ## ✨ Features
 
