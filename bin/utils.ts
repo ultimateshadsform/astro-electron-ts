@@ -13,32 +13,40 @@ export const validateConfig = (config: string): boolean => {
       return false;
     }
 
-    // Check for valid JavaScript/TypeScript syntax
-    new Function(config);
+    // Skip Function check since it can't handle import statements
+    // new Function(config);
 
     // Check for basic Astro config structure
-    const hasValidStructure =
-      config.includes('export default') &&
-      (config.includes('defineConfig({') || config.includes('defineConfig ({'));
+    const hasExportDefault = config.includes('export default');
+    const hasDefineConfig =
+      config.includes('defineConfig({') ||
+      config.includes('defineConfig ({') ||
+      config.includes('defineConfig(\n{') ||
+      config.includes('defineConfig (\n{');
+    const hasElectronImport =
+      config.includes('import electron from') ||
+      config.includes('import electron from "astro-electron-ts"') ||
+      config.includes("import electron from 'astro-electron-ts'");
+    const hasIntegrations =
+      config.includes('integrations: [') && config.includes('electron()');
 
-    // Check for proper electron integration configuration
-    // TypeScript version just needs electron()
-    const hasSimpleElectronConfig =
-      config.includes('electron()') && config.includes('integrations: [');
+    // Log for debugging
+    console.log('Config validation:', {
+      hasExportDefault,
+      hasDefineConfig,
+      hasElectronImport,
+      hasIntegrations,
+      config: config.replace(/\s+/g, ' ').trim(),
+    });
 
-    // JavaScript version needs explicit main and preload paths
-    const hasDetailedElectronConfig =
-      config.includes('electron({') &&
-      config.includes('integrations: [') &&
-      (config.includes('main: {') || config.includes('preload: {'));
-
-    // Config is valid if it has either the simple or detailed electron configuration
     return (
-      hasValidStructure &&
-      (hasSimpleElectronConfig || hasDetailedElectronConfig)
+      hasExportDefault &&
+      hasDefineConfig &&
+      hasElectronImport &&
+      hasIntegrations
     );
-  } catch {
-    // If parsing fails or syntax is invalid, return false
+  } catch (error) {
+    console.error('Config validation error:', error);
     return false;
   }
 };

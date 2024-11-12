@@ -1,4 +1,4 @@
-import { confirm } from '@inquirer/prompts';
+import { confirm, input, select } from '@inquirer/prompts';
 import path from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 
@@ -25,54 +25,63 @@ import { createNewProject } from './project-operations';
 
 export async function main(
   projectName?: string,
-  defaultPM?: PackageManager,
+  packageManager?: PackageManager,
   language?: 'javascript' | 'typescript'
-) {
+): Promise<void> {
   try {
-    const defaultPackageManager = defaultPM ?? (await getPackageManager());
-    const hasProject = await hasPackageJson();
+    const hasPackage = await hasPackageJson();
+    const isAstro = await isAstroProject();
+    const isElectron = await isElectronProject();
 
-    if (!hasProject) {
-      return createNewProject(
-        projectName || 'astro-electron-app',
-        defaultPackageManager,
-        language
-      );
-    }
-
-    const projectStatus = {
-      hasAstro: await isAstroProject(),
-      hasElectron: await isElectronProject(),
-      mainExists: await hasMainField(),
-      electronFilesExist: await hasElectronFiles(),
-    };
-
-    if (
-      projectStatus.hasAstro &&
-      projectStatus.hasElectron &&
-      projectStatus.mainExists &&
-      projectStatus.electronFilesExist
-    ) {
+    if (isAstro && isElectron) {
       console.log('✨ Astro + Electron project detected!');
-      console.log("You're all set! Run your dev command to get started.");
       return;
     }
 
-    if (!projectStatus.hasAstro) {
-      return createNewProject(
-        projectName || 'astro-electron-app',
-        defaultPackageManager,
-        language
-      );
+    if (isAstro) {
+      console.log('✨ Astro project detected!');
+      const shouldAddElectron = await confirm({
+        message: 'Would you like to add Electron to your project?',
+        default: true,
+      });
+
+      if (shouldAddElectron) {
+        await addElectronToExisting();
+      }
+      return;
     }
 
-    await addElectronToExisting();
+    const detectedPackageManager = await getPackageManager();
+    const finalPackageManager = packageManager || detectedPackageManager;
+
+    const finalProjectName =
+      projectName ||
+      (await input({
+        message: 'What is your project name?',
+        default: 'astro-electron-app',
+      }));
+
+    if (finalPackageManager === 'npm') {
+      const selectedPM = await select<PackageManager>({
+        message: 'Which package manager would you like to use?',
+        choices: [
+          { value: 'npm' as const, name: 'npm' },
+          { value: 'pnpm' as const, name: 'pnpm (recommended)' },
+          { value: 'yarn' as const, name: 'yarn' },
+          { value: 'bun' as const, name: 'bun' },
+        ],
+      });
+      await createNewProject(finalProjectName, selectedPM, language);
+    } else {
+      await createNewProject(finalProjectName, finalPackageManager, language);
+    }
   } catch (error) {
     if (isExitPromptError(error)) {
+      console.log('\nOperation cancelled');
       return;
     }
     console.error(
-      'Error:',
+      'Failed to run CLI:',
       error instanceof Error ? error.message : String(error)
     );
     process.exit(1);

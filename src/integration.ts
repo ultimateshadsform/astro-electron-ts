@@ -62,23 +62,28 @@ export const integration = (
     }: {
       dir: URL;
       routes: RouteData[];
-      // ... other properties
     }) => {
       await Promise.all(
         routes.map(async (route) => {
-          if (route.distURL) {
+          if (!route.distURL) return;
+
+          try {
             const filePath = new URL(route.distURL).pathname;
-            const file = await fs.readFile(filePath, 'utf-8');
+            const fileContent = await fs.readFile(filePath, 'utf-8');
+            if (!fileContent) return;
+
             const localDir = path.dirname(filePath);
             const relativePath = path.relative(localDir, new URL(dir).pathname);
 
             await fs.writeFile(
-              route.distURL,
-              file.replaceAll(
+              filePath,
+              fileContent.replaceAll(
                 /\/(astro-electron-ts|public)/g,
                 relativePath || '.'
               )
             );
+          } catch (error) {
+            console.error(`Error processing route ${route.distURL}:`, error);
           }
         })
       );

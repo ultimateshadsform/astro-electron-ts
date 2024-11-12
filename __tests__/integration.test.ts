@@ -1,4 +1,23 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { vi } from 'vitest';
+
+const { mockReadFile, mockWriteFile } = vi.hoisted(() => {
+  return {
+    mockReadFile: vi.fn().mockResolvedValue('test content'),
+    mockWriteFile: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
+vi.mock('fs/promises', () => ({
+  default: {
+    readFile: mockReadFile,
+    writeFile: mockWriteFile,
+  },
+  readFile: mockReadFile,
+  writeFile: mockWriteFile,
+}));
+
+// Now we can import everything else
+import { describe, it, expect, beforeEach } from 'vitest';
 import { integration } from '../src/integration';
 import type { AstroConfig, AstroIntegrationLogger, RouteData } from 'astro';
 
@@ -9,19 +28,17 @@ interface LogMessage {
   [key: string]: any;
 }
 
-vi.mock('fs/promises', () => ({
-  default: {
-    readFile: vi.fn().mockResolvedValue('test content'),
-    writeFile: vi.fn().mockResolvedValue(undefined),
-  },
-}));
-
 describe('astro-electron integration', () => {
   let mockUpdateConfig: ReturnType<typeof vi.fn>;
   let mockConfig: AstroConfig;
   let mockLogger: AstroIntegrationLogger;
 
   beforeEach(() => {
+    // Reset mocks
+    vi.clearAllMocks();
+    mockReadFile.mockClear();
+    mockWriteFile.mockClear();
+
     mockUpdateConfig = vi.fn();
     mockConfig = {
       vite: {},
@@ -190,40 +207,47 @@ describe('astro-electron integration', () => {
 
   describe('astro:build:done hook', () => {
     it('should process routes and update file paths', async () => {
+      const mockRoute: RouteData = {
+        route: '/',
+        component: '/src/pages/index.astro',
+        generate: () => 'test content',
+        params: [],
+        pattern: /^\/$/,
+        prerender: true,
+        distURL: new URL('file:///mock/dist/index.html'),
+        segments: [[{ content: '', dynamic: false, spread: false }]],
+        type: 'page',
+        fallbackRoutes: [],
+        isIndex: true,
+      };
+
       const electronIntegration = integration();
       const buildHook = electronIntegration.hooks['astro:build:done'];
 
       if (!buildHook) throw new Error('Build hook not defined');
 
-      const mockRoutes: RouteData[] = [
-        {
-          route: '/',
-          component: '',
-          generate: vi.fn(),
-          params: [],
-          pattern: /\//,
-          segments: [[]],
-          type: 'page' as const,
-          prerender: false,
-          distURL: new URL('file:///path/to/dist/index.html'),
-          fallbackRoutes: [],
-          isIndex: false,
-          redirect: undefined,
-        },
-      ];
+      // Mock readFile to return content for this specific test
+      mockReadFile.mockResolvedValueOnce(
+        'test content with /astro-electron-ts/path'
+      );
 
       await buildHook({
-        dir: new URL('file:///path/to/dist/'),
-        routes: mockRoutes,
+        dir: new URL('file:///mock/dist/'),
+        routes: [mockRoute],
         logger: mockLogger,
-        pages: [{ pathname: 'index.html' }],
+        pages: [{ pathname: '/' }],
         cacheManifest: false,
       });
 
-      // Verify that fs.readFile and fs.writeFile were called
-      const fs = await import('fs/promises');
-      expect(fs.default.readFile).toHaveBeenCalled();
-      expect(fs.default.writeFile).toHaveBeenCalled();
+      // Use mockReadFile and mockWriteFile directly
+      expect(mockReadFile).toHaveBeenCalledWith(
+        expect.stringContaining('index.html'),
+        'utf-8'
+      );
+      expect(mockWriteFile).toHaveBeenCalledWith(
+        expect.stringContaining('index.html'),
+        expect.any(String)
+      );
     });
   });
 });

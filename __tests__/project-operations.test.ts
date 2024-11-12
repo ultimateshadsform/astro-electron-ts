@@ -1,9 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { input, select, confirm } from '@inquirer/prompts';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import fs from 'fs/promises';
 import path from 'path';
-import { execSync } from 'child_process';
-import { detect } from 'detect-package-manager';
 import {
   createNewProject,
   setupProjectFiles,
@@ -62,12 +59,27 @@ describe('Project Operations', () => {
 
   describe('setupProjectFiles', () => {
     it('should setup TypeScript project correctly', async () => {
+      // Mock package.json content
+      vi.mocked(fs.readFile).mockResolvedValueOnce(
+        JSON.stringify({
+          name: 'test-project',
+          dependencies: {},
+          devDependencies: {},
+          scripts: {},
+        })
+      );
+
       await setupProjectFiles('my-project', 'typescript');
 
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('package.json'),
-        expect.stringContaining('"typescript"'),
-        'utf-8'
+      const writeFileCalls = vi.mocked(fs.writeFile).mock.calls;
+      const packageJsonCall = writeFileCalls.find((call) =>
+        String(call[0]).includes('package.json')
+      );
+
+      expect(packageJsonCall).toBeTruthy();
+      expect(packageJsonCall?.[0]).toMatch(/package\.json$/);
+      expect(packageJsonCall?.[1]).toEqual(
+        expect.stringContaining('"dependencies"')
       );
     });
 

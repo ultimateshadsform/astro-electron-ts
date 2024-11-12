@@ -18,7 +18,8 @@
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "check": "tsx scripts/check.ts",
-    "test": "vitest"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "files": [
     "dist",

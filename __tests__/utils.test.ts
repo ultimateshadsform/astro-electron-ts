@@ -25,18 +25,41 @@ describe('Utils', () => {
   describe('validateConfig', () => {
     it('should validate astro config format', () => {
       const validConfig = `
-        import { defineConfig } from 'astro/config';
-        export default defineConfig({});
-      `;
+import { defineConfig } from 'astro/config';
+import electron from 'astro-electron-ts';
+
+export default defineConfig({
+  integrations: [electron()]
+});
+`.trim();
       expect(validateConfig(validConfig)).toBe(true);
     });
 
     it('should reject invalid config', () => {
       const invalidConfig = `
-        export default {
-          invalid: true
-        };
-      `;
+export default {
+  invalid: true
+};
+`;
+      expect(validateConfig(invalidConfig)).toBe(false);
+    });
+
+    it('should reject config without electron import', () => {
+      const invalidConfig = `
+import { defineConfig } from 'astro/config';
+
+export default defineConfig({
+  integrations: []
+});`.trim();
+      expect(validateConfig(invalidConfig)).toBe(false);
+    });
+
+    it('should reject config without integrations', () => {
+      const invalidConfig = `
+import { defineConfig } from 'astro/config';
+import electron from 'astro-electron-ts';
+
+export default defineConfig({});`.trim();
       expect(validateConfig(invalidConfig)).toBe(false);
     });
   });

@@ -1,9 +1,9 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { input, confirm } from '@inquirer/prompts';
+import { confirm } from '@inquirer/prompts';
 import { fileURLToPath } from 'node:url';
 import type { PackageManager } from './types';
-import { isExitPromptError, getInstallCommand, getRunCommand } from './utils';
+import { getInstallCommand, getRunCommand } from './utils';
 import { getTemplateType } from './template-operations';
 import { convertToJavaScript, copyElectronFiles } from './electron-operations';
 
@@ -21,28 +21,25 @@ export const createNewProject = async (
   packageManager: PackageManager,
   language?: 'javascript' | 'typescript'
 ): Promise<void> => {
-  try {
-    if (!projectName) {
-      projectName = await input({
-        message: 'What is your project name?',
-        default: 'astro-electron-app',
-      });
-    }
+  if (!validateProjectName(projectName)) {
+    throw new Error(`Invalid project name: ${projectName}`);
+  }
 
-    const templateType = language || (await getTemplateType());
-    const targetPath = path.join(process.cwd(), projectName);
+  const templateType = language || (await getTemplateType());
+  const targetPath = path.join(process.cwd(), projectName);
+  const templatePath = path.join(__dirname, '..', 'templates', 'base');
 
-    await handleExistingDirectory(targetPath);
-    await copyTemplate(targetPath);
+  await handleExistingDirectory(targetPath);
+  await fs.cp(templatePath, targetPath, { recursive: true });
 
-    if (templateType === 'javascript') {
-      await configureJavaScript(targetPath);
-    }
+  if (templateType === 'javascript') {
+    await configureJavaScript(targetPath);
+  }
 
-    const installCommand = getInstallCommand(packageManager);
-    const devCommand = getRunCommand(packageManager, 'dev');
+  const installCommand = getInstallCommand(packageManager);
+  const devCommand = getRunCommand(packageManager, 'dev');
 
-    console.log(`
+  console.log(`
 ✨ Project created successfully!
 
 Next steps:
@@ -50,13 +47,6 @@ Next steps:
 2. ${installCommand}
 3. ${devCommand}
     `);
-  } catch (error) {
-    if (isExitPromptError(error)) {
-      console.log('\nOperation cancelled');
-      return;
-    }
-    throw error;
-  }
 };
 
 async function handleExistingDirectory(targetPath: string) {
@@ -139,60 +129,32 @@ export const setupProjectFiles = async (
 ): Promise<void> => {
   try {
     const targetPath = path.join(process.cwd(), projectName);
+    const packageJsonPath = path.join(targetPath, 'package.json');
 
-    // Copy base template files
-    await copyTemplate(targetPath);
+    // Read and parse package.json
+    const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+    const packageJson = JSON.parse(packageJsonContent);
 
-    // Copy electron files
-    await copyElectronFiles(targetPath);
+    // Initialize dependencies if they don't exist
+    packageJson.dependencies = packageJson.dependencies || {};
 
-    // If JavaScript is selected, configure for JavaScript
     if (language === 'javascript') {
-      const packageJsonPath = path.join(targetPath, 'package.json');
-      const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
-      const packageJson = JSON.parse(packageJsonContent);
-
       // Remove TypeScript dependencies
       delete packageJson.dependencies['@astrojs/check'];
       delete packageJson.dependencies['typescript'];
 
-      // Remove TypeScript check from build script
       if (packageJson.scripts?.build) {
         packageJson.scripts.build = packageJson.scripts.build.replace(
           'astro check && ',
           ''
         );
       }
-
-      await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
-      await convertToJavaScript();
-
-      // Update Astro config for JavaScript
-      const astroConfigPath = path.join(targetPath, 'astro.config.mjs');
-      const astroConfigContent = `
-        import { defineConfig } from 'astro/config';
-        import electron from 'astro-electron-ts';
-
-        export default defineConfig({
-          integrations: [
-            electron({
-              main: {
-                entry: 'electron/main.js',
-              },
-              preload: {
-                input: 'electron/preload.js',
-              }
-            })
-          ]
-        });
-      `;
-      await fs.writeFile(astroConfigPath, astroConfigContent, 'utf-8');
     }
+
+    await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
+    await copyElectronFiles(targetPath);
   } catch (error) {
-    console.error(
-      'Error setting up project files:',
-      error instanceof Error ? error.message : String(error)
-    );
+    console.error('Error setting up project files:', error);
     throw error;
   }
 };
@@ -200,11 +162,17 @@ export const setupProjectFiles = async (
 export const validateProjectName = (name: string): boolean => {
   if (!name) return false;
 
+  // Allow scoped packages
+  if (name.startsWith('@')) {
+    const parts = name.split('/');
+    if (parts.length !== 2) return false;
+    name = parts[1]; // Validate the package name part
+  }
+
   // Project name must be lowercase
   if (name.toLowerCase() !== name) return false;
 
   // Check if name contains only valid characters
-  // Valid: lowercase letters, numbers, hyphens, underscores
   if (!/^[a-z0-9-_]+$/.test(name)) return false;
 
   // Name can't start with . or _
@@ -218,13 +186,6 @@ export const validateProjectName = (name: string): boolean => {
 
   // Name can't be longer than 214 characters (npm limit)
   if (name.length > 214) return false;
-
-  // Name can't be a single . or ..
-  if (name === '.' || name === '..') return false;
-
-  // Name can't be a Node.js core module
-  const nodeBuiltins = ['node', 'console', 'process', 'buffer', 'events'];
-  if (nodeBuiltins.includes(name)) return false;
 
   return true;
 };
