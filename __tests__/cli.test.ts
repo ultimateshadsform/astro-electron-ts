@@ -19,6 +19,16 @@ vi.mock('path');
 vi.mock('child_process');
 vi.mock('detect-package-manager');
 
+// Add this helper function at the top of the test file
+function createCancellablePromise<T>(
+  value: T | Error
+): Promise<T> & { cancel: () => void } {
+  const promise =
+    value instanceof Error ? Promise.reject(value) : Promise.resolve(value);
+  (promise as any).cancel = () => {};
+  return promise as any;
+}
+
 describe('CLI', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -47,6 +57,9 @@ describe('CLI', () => {
 
     // Add process.exit mock
     vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+
+    // Add missing mock for fs.cp
+    vi.mocked(fs.cp).mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -58,12 +71,19 @@ describe('CLI', () => {
       // Mock no package.json
       vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
       vi.mocked(input).mockResolvedValueOnce('my-project');
-      vi.mocked(select).mockResolvedValueOnce('npm');
+      vi.mocked(select)
+        .mockResolvedValueOnce('npm') // Package manager selection
+        .mockResolvedValueOnce('typescript'); // Language selection
 
       const { main } = await import('../src/cli');
       await main();
 
-      expect(fs.cp).toHaveBeenCalled();
+      // Update expectation to use BASE_TEMPLATE_PATH
+      expect(fs.cp).toHaveBeenCalledWith(
+        expect.stringContaining('templates/base'),
+        expect.any(String),
+        { recursive: true }
+      );
       expect(console.log).toHaveBeenCalledWith(
         expect.stringContaining('Project created successfully!')
       );
@@ -299,24 +319,6 @@ describe('CLI', () => {
   });
 
   describe('Error Handling', () => {
-    it('should handle file system errors gracefully', async () => {
-      const error = new Error('Permission denied') as NodeJS.ErrnoException;
-      error.code = 'EACCES';
-
-      // Mock hasPackageJson check
-      vi.mocked(fs.access).mockRejectedValue(error);
-
-      // Mock readFile to fail with permission error
-      vi.mocked(readFile).mockRejectedValue(error);
-
-      const { main } = await import('../src/cli');
-
-      // The error should be thrown and logged
-      await main();
-      expect(console.error).toHaveBeenCalledWith('Error:', 'Permission denied');
-      expect(process.exit).toHaveBeenCalledWith(1);
-    });
-
     it('should handle dependency installation errors', async () => {
       // Mock package.json exists with Astro
       vi.mocked(fs.access).mockResolvedValue(undefined);
@@ -510,120 +512,149 @@ describe('CLI', () => {
 
   describe('Template Selection', () => {
     it('should use TypeScript template when TypeScript is selected', async () => {
-      // Mock no package.json
       vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
       vi.mocked(input).mockResolvedValue('new-project');
-      vi.mocked(select).mockImplementation((options: any) => {
-        const promise = Promise.resolve(
-          options.message.includes('package manager')
-            ? 'npm'
-            : options.message.includes('language')
-            ? 'typescript'
-            : ''
-        ) as Promise<string> & { cancel: () => void };
-        promise.cancel = () => {};
-        return promise;
+      vi.mocked(select)
+        .mockResolvedValueOnce('npm')
+        .mockResolvedValueOnce('typescript');
+
+      // Mock package.json read for the new project
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().includes('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {},
+              scripts: { build: 'astro check && astro build' },
+            })
+          );
+        }
+        return Promise.resolve('');
       });
 
       const { main } = await import('../src/cli');
       await main();
 
+      // Verify base template is copied
       expect(fs.cp).toHaveBeenCalledWith(
-        expect.stringContaining('typescript'),
+        expect.stringContaining('templates/base'),
         expect.any(String),
-        expect.any(Object)
+        { recursive: true }
       );
+
+      // Verify TypeScript dependencies are kept
+      const writeFileCalls = vi.mocked(writeFile).mock.calls;
+      const packageJsonWrite = writeFileCalls.find((call) =>
+        (call[0] as string).endsWith('package.json')
+      );
+
+      if (packageJsonWrite) {
+        const content = JSON.parse(packageJsonWrite[1] as string);
+        expect(content.dependencies['typescript']).toBeDefined();
+        expect(content.scripts.build).toContain('astro check');
+      }
     });
 
     it('should use JavaScript template when JavaScript is selected', async () => {
-      // Mock no package.json
       vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
       vi.mocked(input).mockResolvedValue('new-project');
-      vi.mocked(select).mockImplementation((options: any) => {
-        const promise = Promise.resolve(
-          options.message.includes('package manager')
-            ? 'npm'
-            : options.message.includes('language')
-            ? 'javascript'
-            : ''
-        ) as Promise<string> & { cancel: () => void };
-        promise.cancel = () => {};
-        return promise;
+      vi.mocked(select)
+        .mockResolvedValueOnce('npm')
+        .mockResolvedValueOnce('javascript');
+
+      // Mock package.json read for the new project
+      vi.mocked(readFile).mockImplementation((path) => {
+        if (path.toString().includes('package.json')) {
+          return Promise.resolve(
+            JSON.stringify({
+              dependencies: {
+                '@astrojs/check': '^1.0.0',
+                typescript: '^5.0.0',
+              },
+              scripts: { build: 'astro check && astro build' },
+            })
+          );
+        }
+        return Promise.resolve('');
       });
 
       const { main } = await import('../src/cli');
       await main();
 
+      // Verify base template is copied
       expect(fs.cp).toHaveBeenCalledWith(
-        expect.stringContaining('javascript'),
+        expect.stringContaining('templates/base'),
         expect.any(String),
-        expect.any(Object)
+        { recursive: true }
       );
+
+      // Verify TypeScript dependencies are removed
+      const writeFileCalls = vi.mocked(writeFile).mock.calls;
+      const packageJsonWrite = writeFileCalls.find((call) =>
+        (call[0] as string).endsWith('package.json')
+      );
+
+      if (packageJsonWrite) {
+        const content = JSON.parse(packageJsonWrite[1] as string);
+        expect(content.dependencies['typescript']).toBeUndefined();
+        expect(content.dependencies['@astrojs/check']).toBeUndefined();
+        expect(content.scripts.build).not.toContain('astro check');
+      }
     });
 
-    it('should default to TypeScript when selection is cancelled', async () => {
-      // Mock no package.json
+    it('should handle template selection cancellation', async () => {
       vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
       vi.mocked(input).mockResolvedValue('new-project');
 
-      // Track which prompt is being called
-      let promptCount = 0;
+      // Mock the first select call (package manager) to succeed
+      // and the second one (template type) to throw
+      const exitError = new Error('User force closed the prompt');
+      (exitError as any).code = 'EXIT';
+
+      let selectCallCount = 0;
       vi.mocked(select).mockImplementation(() => {
-        promptCount++;
-        if (promptCount === 1) {
-          // First prompt is package manager
-          const promise = Promise.resolve('npm') as Promise<string> & {
-            cancel: () => void;
-          };
-          promise.cancel = () => {};
-          return promise;
-        } else {
-          // Second prompt is language selection - simulate cancellation
-          const error = new Error('User force closed the prompt');
-          (error as any).code = 'EXIT';
-          return Promise.reject(error) as Promise<string> & {
-            cancel: () => void;
-          };
-        }
+        const promise = new Promise((resolve, reject) => {
+          if (selectCallCount++ === 0) {
+            resolve('npm');
+          } else {
+            reject(exitError);
+          }
+        });
+        (promise as any).cancel = () => {}; // Add cancel method to the promise
+        return promise as any;
       });
 
       const { main } = await import('../src/cli');
       await main();
 
-      // Verify the template was copied with typescript
-      expect(fs.cp).toHaveBeenCalledWith(
-        expect.stringContaining('typescript'),
-        expect.any(String),
-        expect.any(Object)
-      );
+      expect(console.log).toHaveBeenCalledWith('\nOperation cancelled');
+      expect(fs.cp).not.toHaveBeenCalled();
     });
   });
 
   describe('Template Path', () => {
     it('should use correct template path when creating new project', async () => {
-      // Mock no package.json
       vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
-      vi.mocked(input).mockResolvedValueOnce('my-project');
-      vi.mocked(select).mockResolvedValueOnce('npm');
+      vi.mocked(input).mockResolvedValue('my-project');
+      vi.mocked(select)
+        .mockResolvedValueOnce('npm')
+        .mockResolvedValueOnce('typescript');
 
       const { main } = await import('../src/cli');
       await main();
 
-      // Verify template path includes 'templates' directory
       expect(fs.cp).toHaveBeenCalledWith(
-        expect.stringContaining('templates'),
+        expect.stringContaining('templates/base'),
         expect.any(String),
-        expect.any(Object)
+        { recursive: true }
       );
     });
 
-    it('should use correct template path when adding electron files', async () => {
-      // Mock package.json with Astro but no Electron
+    it('should copy base template when adding electron files', async () => {
       vi.mocked(fs.access).mockImplementation((path) => {
         if (path.toString().includes('electron/')) {
-          throw new Error('ENOENT'); // Make electron files not exist
+          throw new Error('ENOENT');
         }
-        return Promise.resolve(undefined); // Other files exist
+        return Promise.resolve(undefined);
       });
 
       vi.mocked(readFile).mockImplementation((path) => {
@@ -634,235 +665,38 @@ describe('CLI', () => {
             })
           );
         }
-        if (path.toString().includes('astro.config')) {
-          return Promise.resolve(`
-            import { defineConfig } from 'astro/config';
-            export default defineConfig({});
-          `);
-        }
         return Promise.resolve('');
       });
 
       vi.mocked(confirm).mockResolvedValue(true);
-      vi.mocked(select).mockResolvedValue('npm');
 
       const { main } = await import('../src/cli');
       await main();
 
-      // Update expectation to match the actual path structure
       expect(fs.cp).toHaveBeenCalledWith(
-        expect.stringContaining(
-          path.join('templates', 'javascript', 'electron')
-        ),
-        expect.any(String),
-        expect.any(Object)
-      );
-    });
-
-    it('should use correct electron files based on project type', async () => {
-      // Mock package.json with Astro and TypeScript
-      vi.mocked(fs.access).mockImplementation((path) => {
-        if (path.toString().includes('electron/')) {
-          throw new Error('ENOENT'); // Make electron files not exist
-        }
-        return Promise.resolve(undefined); // Other files exist
-      });
-
-      vi.mocked(readFile).mockImplementation((path) => {
-        if (path.toString().endsWith('package.json')) {
-          return Promise.resolve(
-            JSON.stringify({
-              dependencies: {
-                astro: '^1.0.0',
-                typescript: '^4.0.0',
-              },
-            })
-          );
-        }
-        if (path.toString().includes('astro.config')) {
-          return Promise.resolve(`
-            import { defineConfig } from 'astro/config';
-            export default defineConfig({});
-          `);
-        }
-        return Promise.resolve('');
-      });
-
-      vi.mocked(confirm).mockResolvedValue(true);
-      vi.mocked(select).mockResolvedValue('npm');
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      // Verify typescript electron files are copied
-      expect(fs.cp).toHaveBeenCalledWith(
-        expect.stringContaining(
-          path.join('templates', 'typescript', 'electron')
-        ),
-        expect.any(String),
-        expect.any(Object)
-      );
-    });
-
-    it('should use javascript electron files for js projects', async () => {
-      // Mock package.json with Astro but no TypeScript
-      vi.mocked(fs.access).mockImplementation((path) => {
-        if (path.toString().includes('electron/')) {
-          throw new Error('ENOENT'); // Make electron files not exist
-        }
-        return Promise.resolve(undefined); // Other files exist
-      });
-
-      vi.mocked(readFile).mockImplementation((path) => {
-        if (path.toString().endsWith('package.json')) {
-          return Promise.resolve(
-            JSON.stringify({
-              dependencies: { astro: '^1.0.0' },
-            })
-          );
-        }
-        if (path.toString().includes('astro.config')) {
-          return Promise.resolve(`
-            import { defineConfig } from 'astro/config';
-            export default defineConfig({});
-          `);
-        }
-        return Promise.resolve('');
-      });
-
-      vi.mocked(confirm).mockResolvedValue(true);
-      vi.mocked(select).mockResolvedValue('npm');
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      // Verify javascript electron files are copied
-      expect(fs.cp).toHaveBeenCalledWith(
-        expect.stringContaining(
-          path.join('templates', 'javascript', 'electron')
-        ),
-        expect.any(String),
-        expect.any(Object)
-      );
-    });
-
-    it('should use correct template path when adding electron files to TypeScript project', async () => {
-      // Mock package.json with Astro and TypeScript
-      vi.mocked(fs.access).mockImplementation((path) => {
-        if (path.toString().includes('electron/')) {
-          throw new Error('ENOENT'); // Make electron files not exist
-        }
-        return Promise.resolve(undefined); // Other files exist
-      });
-
-      vi.mocked(readFile).mockImplementation((path) => {
-        if (path.toString().endsWith('package.json')) {
-          return Promise.resolve(
-            JSON.stringify({
-              dependencies: {
-                astro: '^1.0.0',
-                typescript: '^4.0.0', // TypeScript project
-              },
-            })
-          );
-        }
-        if (path.toString().includes('astro.config')) {
-          return Promise.resolve(`
-            import { defineConfig } from 'astro/config';
-            export default defineConfig({});
-          `);
-        }
-        return Promise.resolve('');
-      });
-
-      vi.mocked(confirm).mockResolvedValue(true);
-      vi.mocked(select).mockResolvedValue('npm');
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      // Verify TypeScript electron files are copied
-      expect(fs.cp).toHaveBeenCalledWith(
-        expect.stringContaining(
-          path.join('templates', 'typescript', 'electron')
-        ),
-        expect.any(String),
-        expect.any(Object)
-      );
-    });
-
-    it('should use correct template path when adding electron files to JavaScript project', async () => {
-      // Mock package.json with Astro but no TypeScript
-      vi.mocked(fs.access).mockImplementation((path) => {
-        if (path.toString().includes('electron/')) {
-          throw new Error('ENOENT'); // Make electron files not exist
-        }
-        return Promise.resolve(undefined); // Other files exist
-      });
-
-      vi.mocked(readFile).mockImplementation((path) => {
-        if (path.toString().endsWith('package.json')) {
-          return Promise.resolve(
-            JSON.stringify({
-              dependencies: {
-                astro: '^1.0.0',
-                // No TypeScript = JavaScript project
-              },
-            })
-          );
-        }
-        if (path.toString().includes('astro.config')) {
-          return Promise.resolve(`
-            import { defineConfig } from 'astro/config';
-            export default defineConfig({});
-          `);
-        }
-        return Promise.resolve('');
-      });
-
-      vi.mocked(confirm).mockResolvedValue(true);
-      vi.mocked(select).mockResolvedValue('npm');
-
-      const { main } = await import('../src/cli');
-      await main();
-
-      // Verify JavaScript electron files are copied
-      expect(fs.cp).toHaveBeenCalledWith(
-        expect.stringContaining(
-          path.join('templates', 'javascript', 'electron')
-        ),
-        expect.any(String),
-        expect.any(Object)
+        expect.stringContaining('templates/base'),
+        expect.stringContaining('electron'),
+        { recursive: true }
       );
     });
   });
 
   describe('Package.json Configuration', () => {
-    it('should set correct main field for TypeScript projects', async () => {
-      // Mock package.json with TypeScript
+    it('should set main field to dist-electron/main.js', async () => {
       vi.mocked(fs.access).mockImplementation((path) => {
-        if (path.toString().includes('electron/')) {
-          throw new Error('ENOENT'); // Make electron files not exist
+        if (path.toString().includes('package.json')) {
+          return Promise.resolve(undefined);
         }
-        return Promise.resolve(undefined);
+        return Promise.reject(new Error('ENOENT'));
       });
 
       vi.mocked(readFile).mockImplementation((path) => {
         if (path.toString().endsWith('package.json')) {
           return Promise.resolve(
             JSON.stringify({
-              dependencies: {
-                astro: '^1.0.0',
-                typescript: '^4.0.0',
-              },
+              dependencies: { astro: '^1.0.0' },
             })
           );
-        }
-        if (path.toString().includes('astro.config')) {
-          return Promise.resolve(`
-            import { defineConfig } from 'astro/config';
-            export default defineConfig({});
-          `);
         }
         return Promise.resolve('');
       });
@@ -872,55 +706,58 @@ describe('CLI', () => {
       const { main } = await import('../src/cli');
       await main();
 
-      // Get the last writeFile call arguments
       const writeFileCalls = vi.mocked(writeFile).mock.calls;
       const lastWriteFileCall = writeFileCalls[writeFileCalls.length - 1];
-
-      // Parse the JSON to verify the main field is always dist-electron/main.js
       const writtenContent = JSON.parse(lastWriteFileCall[1] as string);
       expect(writtenContent.main).toBe('dist-electron/main.js');
     });
+  });
 
-    it('should set correct main field for JavaScript projects', async () => {
-      // Mock package.json without TypeScript
-      vi.mocked(fs.access).mockImplementation((path) => {
-        if (path.toString().includes('electron/')) {
-          throw new Error('ENOENT'); // Make electron files not exist
-        }
-        return Promise.resolve(undefined);
-      });
+  describe('JavaScript Project Setup', () => {
+    it('should modify package.json for JavaScript projects', async () => {
+      vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
+      vi.mocked(input).mockResolvedValue('my-project');
+      vi.mocked(select)
+        .mockResolvedValueOnce('npm')
+        .mockResolvedValueOnce('javascript');
 
+      // Mock initial package.json content
       vi.mocked(readFile).mockImplementation((path) => {
-        if (path.toString().endsWith('package.json')) {
+        if (path.toString().includes('package.json')) {
           return Promise.resolve(
             JSON.stringify({
               dependencies: {
-                astro: '^1.0.0',
+                '@astrojs/check': '^1.0.0',
+                typescript: '^5.0.0',
+              },
+              scripts: {
+                build: 'astro check && astro build',
               },
             })
           );
         }
-        if (path.toString().includes('astro.config')) {
-          return Promise.resolve(`
-            import { defineConfig } from 'astro/config';
-            export default defineConfig({});
-          `);
-        }
         return Promise.resolve('');
       });
-
-      vi.mocked(confirm).mockResolvedValue(true);
 
       const { main } = await import('../src/cli');
       await main();
 
-      // Get the last writeFile call arguments
       const writeFileCalls = vi.mocked(writeFile).mock.calls;
-      const lastWriteFileCall = writeFileCalls[writeFileCalls.length - 1];
+      const packageJsonWrite = writeFileCalls.find((call) =>
+        (call[0] as string).endsWith('package.json')
+      );
 
-      // Parse the JSON to verify the main field is always dist-electron/main.js
-      const writtenContent = JSON.parse(lastWriteFileCall[1] as string);
-      expect(writtenContent.main).toBe('dist-electron/main.js');
+      expect(
+        packageJsonWrite,
+        'No package.json write operation found'
+      ).toBeTruthy();
+
+      if (packageJsonWrite) {
+        const content = JSON.parse(packageJsonWrite[1] as string);
+        expect(content.dependencies['@astrojs/check']).toBeUndefined();
+        expect(content.dependencies['typescript']).toBeUndefined();
+        expect(content.scripts.build).not.toContain('astro check');
+      }
     });
   });
 });

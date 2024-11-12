@@ -6,7 +6,10 @@ import { readFile, writeFile } from 'fs/promises';
 import { detect } from 'detect-package-manager';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const TEMPLATE_PATH = path.join(__dirname, '..', '..', 'templates');
+const BASE_TEMPLATE_PATH = path.join(TEMPLATE_PATH, 'base');
+const ASTRO_EXTENSIONS = ['.mjs', '.js', '.ts', '.cjs', '.mts', '.cts'];
 
 type PackageManager = 'npm' | 'yarn' | 'pnpm' | 'bun';
 
@@ -24,31 +27,9 @@ async function detectPackageManager(): Promise<PackageManager> {
   }
 }
 
-async function copyTemplate(
-  templatePath: string,
-  targetPath: string,
-  templateType?: 'javascript' | 'typescript'
-) {
+async function copyTemplate(targetPath: string) {
   try {
-    const isJS = templateType
-      ? templateType === 'javascript'
-      : await isJavaScriptProject();
-
-    if (templatePath.endsWith('electron')) {
-      const sourceDir = path.join(
-        TEMPLATE_PATH,
-        isJS ? 'javascript' : 'typescript',
-        'electron'
-      );
-      await fs.cp(sourceDir, targetPath, { recursive: true });
-      return;
-    }
-
-    const templateDir = path.join(
-      templatePath,
-      isJS ? 'javascript' : 'typescript'
-    );
-    await fs.cp(templateDir, targetPath, { recursive: true });
+    await fs.cp(BASE_TEMPLATE_PATH, targetPath, { recursive: true });
   } catch (error) {
     console.error(
       'Error copying template:',
@@ -125,10 +106,9 @@ async function isElectronProject(): Promise<boolean> {
     );
 
     // Check for astro-electron-ts in the config
-    const possibleExtensions = ['.mjs', '.js', '.ts'];
     let configContent = '';
 
-    for (const ext of possibleExtensions) {
+    for (const ext of ASTRO_EXTENSIONS) {
       const configPath = path.join(process.cwd(), `astro.config${ext}`);
       try {
         configContent = await readFile(configPath, 'utf-8');
@@ -159,9 +139,13 @@ async function hasMainField(): Promise<boolean> {
 
 async function hasElectronFiles(): Promise<boolean> {
   try {
+    const isJS = await isJavaScriptProject();
     const electronDir = path.join(process.cwd(), 'electron');
-    const mainFile = path.join(electronDir, 'main.ts');
-    const preloadFile = path.join(electronDir, 'preload.ts');
+    const mainFile = path.join(electronDir, isJS ? 'main.js' : 'main.ts');
+    const preloadFile = path.join(
+      electronDir,
+      isJS ? 'preload.js' : 'preload.ts'
+    );
 
     // Check if all required files exist
     await Promise.all([
@@ -223,11 +207,9 @@ async function hasPackageJson(): Promise<boolean> {
 
 async function addElectronIntegration(): Promise<void> {
   try {
-    // Look for either .mjs, .js, or .ts extension
-    const possibleExtensions = ['.mjs', '.js', '.ts'];
     let configPath: string | undefined;
 
-    for (const ext of possibleExtensions) {
+    for (const ext of ASTRO_EXTENSIONS) {
       const filePath = path.join(process.cwd(), `astro.config${ext}`);
       try {
         await fs.access(filePath);
@@ -265,9 +247,9 @@ async function addElectronIntegration(): Promise<void> {
         preload: {
           input: 'electron/preload.js',
           vite: {},
-        },
+        }
       })`
-      : `electron()`; // Simplified config for TypeScript
+      : `electron()`; // Keep TypeScript config minimal
 
     // Add the electron integration
     if (content.includes('defineConfig({')) {
@@ -336,9 +318,100 @@ async function getTemplateType(): Promise<'javascript' | 'typescript'> {
       ],
       default: 'typescript',
     })) as 'javascript' | 'typescript';
-  } catch {
-    // Return typescript as default when cancelled or on error
-    return 'typescript';
+  } catch (error) {
+    // Log cancellation message and rethrow
+    if (isExitPromptError(error)) {
+      console.log('\nOperation cancelled');
+    }
+    throw error;
+  }
+}
+
+async function createNewProject(defaultPackageManager: PackageManager) {
+  let projectName;
+  try {
+    projectName = await input({
+      message: 'What is your project name?',
+      default: 'astro-electron-app',
+    });
+  } catch (error) {
+    if (isExitPromptError(error)) {
+      console.log('\nOperation cancelled');
+      return;
+    }
+    throw error;
+  }
+
+  try {
+    const packageManager = await getPackageManager(defaultPackageManager);
+    const templateType = await getTemplateType();
+    const targetPath = path.join(process.cwd(), projectName);
+
+    // Check if directory exists
+    try {
+      await fs.access(targetPath);
+      const overwrite = await confirm({
+        message: 'Directory already exists. Overwrite?',
+        default: false,
+      });
+
+      if (!overwrite) {
+        console.log('Operation cancelled');
+        return;
+      }
+    } catch (error: unknown) {
+      // Directory doesn't exist, which is what we want
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        (error as NodeJS.ErrnoException).code !== 'ENOENT'
+      ) {
+        console.error('Error checking directory:', error.message);
+        throw error;
+      }
+    }
+
+    // Copy template
+    await copyTemplate(targetPath);
+
+    // If JavaScript was chosen, modify package.json
+    if (templateType === 'javascript') {
+      const packageJsonPath = path.join(targetPath, 'package.json');
+      const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
+      const packageJson = JSON.parse(packageJsonContent);
+
+      // Remove TypeScript-related dependencies
+      delete packageJson.dependencies['@astrojs/check'];
+      delete packageJson.dependencies['typescript'];
+
+      // Remove astro check from build script
+      if (packageJson.scripts?.build) {
+        packageJson.scripts.build = packageJson.scripts.build.replace(
+          'astro check && ',
+          ''
+        );
+      }
+
+      await writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
+    }
+
+    const installCommand = getInstallCommand(packageManager);
+    const devCommand = getRunCommand(packageManager, 'dev');
+
+    console.log(`
+✨ Project created successfully!
+
+Next steps:
+1. cd ${projectName}
+2. ${installCommand}
+3. ${devCommand}
+    `);
+  } catch (error) {
+    if (isExitPromptError(error)) {
+      console.log('\nOperation cancelled');
+      return;
+    }
+    throw error;
   }
 }
 
@@ -352,71 +425,7 @@ export async function main() {
 
     // If no package.json exists, only show create option
     if (!hasProject) {
-      let projectName;
-      try {
-        projectName = await input({
-          message: 'What is your project name?',
-          default: 'astro-electron-app',
-        });
-      } catch (error) {
-        if (isExitPromptError(error)) {
-          console.log('\nOperation cancelled');
-          return;
-        }
-        throw error;
-      }
-
-      try {
-        packageManager = await getPackageManager(defaultPackageManager);
-        const templateType = await getTemplateType();
-        const targetPath = path.join(process.cwd(), projectName);
-
-        // Check if directory exists
-        try {
-          await fs.access(targetPath);
-          const overwrite = await confirm({
-            message: 'Directory already exists. Overwrite?',
-            default: false,
-          });
-
-          if (!overwrite) {
-            console.log('Operation cancelled');
-            return;
-          }
-        } catch (error: unknown) {
-          // Directory doesn't exist, which is what we want
-          if (
-            error instanceof Error &&
-            'code' in error &&
-            (error as NodeJS.ErrnoException).code !== 'ENOENT'
-          ) {
-            console.error('Error checking directory:', error.message);
-            throw error;
-          }
-        }
-
-        // Copy template with selected type
-        await copyTemplate(TEMPLATE_PATH, targetPath, templateType);
-
-        const installCommand = getInstallCommand(packageManager);
-        const devCommand = getRunCommand(packageManager, 'dev');
-
-        console.log(`
-✨ Project created successfully!
-
-Next steps:
-1. cd ${projectName}
-2. ${installCommand}
-3. ${devCommand}
-        `);
-        return;
-      } catch (error) {
-        if (isExitPromptError(error)) {
-          console.log('\nOperation cancelled');
-          return;
-        }
-        throw error;
-      }
+      return createNewProject(defaultPackageManager);
     }
 
     // If we get here, package.json exists, so check project status
@@ -441,71 +450,7 @@ Next steps:
 
     // If no Astro project detected, only show create option
     if (!projectStatus.hasAstro) {
-      let projectName;
-      try {
-        projectName = await input({
-          message: 'What is your project name?',
-          default: 'astro-electron-app',
-        });
-      } catch (error) {
-        if (isExitPromptError(error)) {
-          console.log('\nOperation cancelled');
-          return;
-        }
-        throw error;
-      }
-
-      try {
-        packageManager = await getPackageManager(defaultPackageManager);
-        const templateType = await getTemplateType();
-        const targetPath = path.join(process.cwd(), projectName);
-
-        // Check if directory exists
-        try {
-          await fs.access(targetPath);
-          const overwrite = await confirm({
-            message: 'Directory already exists. Overwrite?',
-            default: false,
-          });
-
-          if (!overwrite) {
-            console.log('Operation cancelled');
-            return;
-          }
-        } catch (error: unknown) {
-          // Directory doesn't exist, which is what we want
-          if (
-            error instanceof Error &&
-            'code' in error &&
-            (error as NodeJS.ErrnoException).code !== 'ENOENT'
-          ) {
-            console.error('Error checking directory:', error.message);
-            throw error;
-          }
-        }
-
-        // Copy template with selected type
-        await copyTemplate(TEMPLATE_PATH, targetPath, templateType);
-
-        const installCommand = getInstallCommand(packageManager);
-        const devCommand = getRunCommand(packageManager, 'dev');
-
-        console.log(`
-✨ Project created successfully!
-
-Next steps:
-1. cd ${projectName}
-2. ${installCommand}
-3. ${devCommand}
-        `);
-        return;
-      } catch (error) {
-        if (isExitPromptError(error)) {
-          console.log('\nOperation cancelled');
-          return;
-        }
-        throw error;
-      }
+      return createNewProject(defaultPackageManager);
     }
 
     // If we're in an Astro project but Electron needs to be added/configured
@@ -558,10 +503,7 @@ Next steps:
       // Copy electron files if they're missing
       if (!projectStatus.electronFilesExist) {
         console.log('📁 Adding Electron files...');
-        await copyTemplate(
-          path.join(TEMPLATE_PATH, 'electron'),
-          path.join(currentDir, 'electron')
-        );
+        await copyTemplate(path.join(currentDir, 'electron'));
       }
 
       // Add this line to set up the integration
@@ -586,12 +528,10 @@ Next steps:
         }
       }
 
-      // If no Astro project detected, only show create option
+      // If no Electron detected, install dependencies
       if (!projectStatus.hasElectron) {
         console.log('Installing dependencies...');
         const dependencies = ['electron', 'astro-electron-ts'];
-
-        // Only include electron-builder as dev dependency
         const devDependencies = ['electron-builder'];
 
         // Install regular dependencies
@@ -639,7 +579,7 @@ Next steps:
     }
   } catch (error) {
     if (isExitPromptError(error)) {
-      console.log('\nOperation cancelled');
+      // Don't log again since getTemplateType already logs
       return;
     }
     console.error(
