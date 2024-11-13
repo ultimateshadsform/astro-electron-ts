@@ -1,12 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { main } from '../../bin/cli';
-import { confirm, input, select } from '@inquirer/prompts';
-import fs from 'node:fs/promises';
 
 // Mock utils module
 vi.mock('../../bin/utils', () => ({
   isTest: () => true,
-  isExitPromptError: (error: unknown) => false,
+  isExitPromptError: () => false,
   getPackageManager: vi.fn().mockResolvedValue('npm'),
   getRunCommand: vi.fn().mockReturnValue('npm run dev'),
   getInstallCommand: vi.fn().mockReturnValue('npm install'),
