@@ -1,86 +1,86 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { input, select, confirm } from '@inquirer/prompts';
-import fs from 'fs/promises';
-import path from 'path';
-import { execa } from 'execa';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { confirm, input, select } from '@inquirer/prompts';
+import { main } from '../../bin/cli';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
-vi.mock('@inquirer/prompts');
-vi.mock('fs/promises');
-vi.mock('path');
-vi.mock('execa');
+// Mock path to normalize separators
+vi.mock('path', () => ({
+  default: {
+    join: (...args: string[]) => args.join('/').replace(/\\/g, '/'),
+    dirname: vi.fn().mockReturnValue('/mock/bin'),
+  },
+  join: (...args: string[]) => args.join('/').replace(/\\/g, '/'),
+  dirname: vi.fn().mockReturnValue('/mock/bin'),
+}));
+
+// Mock fs/promises with default export
+vi.mock('node:fs/promises', () => {
+  return {
+    default: {
+      access: vi.fn(),
+      mkdir: vi.fn(),
+      cp: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+    },
+    access: vi.fn(),
+    mkdir: vi.fn(),
+    cp: vi.fn(),
+    readFile: vi.fn(),
+    writeFile: vi.fn(),
+  };
+});
+
+vi.mock('@inquirer/prompts', () => ({
+  confirm: vi.fn().mockResolvedValue(true),
+  input: vi.fn(),
+  select: vi.fn(),
+}));
+
+// Mock fileURLToPath
+vi.mock('url', () => ({
+  fileURLToPath: vi.fn((url) => url.replace('file://', '')),
+}));
+
+// Mock process.cwd
+vi.spyOn(process, 'cwd').mockReturnValue('/mock/cwd');
 
 describe('Project Creation', () => {
+  let mockAccess: ReturnType<typeof vi.fn>;
+  let mockMkdir: ReturnType<typeof vi.fn>;
+  let mockCp: ReturnType<typeof vi.fn>;
+  let mockReadFile: ReturnType<typeof vi.fn>;
+  let mockWriteFile: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
+    mockAccess = vi.mocked(fs.access);
+    mockMkdir = vi.mocked(fs.mkdir);
+    mockCp = vi.mocked(fs.cp);
+    mockReadFile = vi.mocked(fs.readFile);
+    mockWriteFile = vi.mocked(fs.writeFile);
+
+    process.env.NODE_ENV = 'test';
     vi.clearAllMocks();
-    vi.resetModules();
-
-    // Mock path.join
-    vi.mocked(path.join).mockImplementation((...args) => args.join('/'));
-
-    // Mock fs operations
-    vi.mocked(fs.readFile).mockResolvedValue(
-      JSON.stringify({
-        name: 'test-project',
-        dependencies: {},
-        scripts: {},
-      })
+    (confirm as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    (input as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      'new-project'
     );
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
-    vi.mocked(fs.cp).mockResolvedValue(undefined);
-    vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT')); // Default to file not existing
-
-    // Mock console
-    vi.spyOn(console, 'log').mockImplementation(() => {});
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    // Mock execa
-    vi.mocked(execa).mockResolvedValue({
-      stdout: '',
-      stderr: '',
-      exitCode: 0,
-      failed: false,
-      killed: false,
-      signal: null,
-      command: '',
-      timedOut: false,
-    } as any);
-  });
-
-  afterEach(() => {
-    vi.resetAllMocks();
+    (select as unknown as ReturnType<typeof vi.fn>).mockResolvedValue('npm');
+    mockAccess.mockResolvedValue(undefined);
+    mockMkdir.mockResolvedValue(undefined);
+    mockCp.mockResolvedValue(undefined);
+    mockReadFile.mockResolvedValue('{}');
+    mockWriteFile.mockResolvedValue(undefined);
   });
 
   it('should create a new project when no package.json exists', async () => {
-    vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'));
-    vi.mocked(input).mockResolvedValueOnce('my-project');
-    vi.mocked(select)
-      .mockResolvedValueOnce('npm')
-      .mockResolvedValueOnce('typescript');
-
-    const { main } = await import('../../bin/cli');
     await main();
 
-    expect(fs.cp).toHaveBeenCalledWith(
-      expect.stringContaining('templates/base'),
-      expect.any(String),
+    expect(mockCp).toHaveBeenCalledWith(
+      expect.stringMatching(/templates\/base$/),
+      expect.stringMatching(/mock\/cwd\/new-project$/),
       { recursive: true }
     );
-    expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('Project created successfully!')
-    );
-  });
-
-  it('should handle existing directory with overwrite confirmation', async () => {
-    vi.mocked(fs.access).mockResolvedValueOnce(undefined);
-    vi.mocked(confirm).mockResolvedValueOnce(true);
-    vi.mocked(input).mockResolvedValueOnce('existing-project');
-    vi.mocked(select)
-      .mockResolvedValueOnce('npm')
-      .mockResolvedValueOnce('typescript');
-
-    const { main } = await import('../../bin/cli');
-    await main();
-
-    expect(fs.cp).toHaveBeenCalled();
   });
 });

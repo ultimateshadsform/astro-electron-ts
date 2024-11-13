@@ -9,10 +9,15 @@ vi.mock('@inquirer/prompts');
 vi.mock('execa');
 
 // Now import the mocked modules
-import { access, cp } from 'fs/promises';
+import { access, cp, rename, readFile, writeFile } from 'fs/promises';
 import path from 'path';
 import { confirm } from '@inquirer/prompts';
 import { execa } from 'execa';
+
+// Mock project-operations for ELECTRON_TEMPLATE_PATH
+vi.mock('../bin/project-operations', () => ({
+  ELECTRON_TEMPLATE_PATH: '/mock/templates/base/electron',
+}));
 
 // Create base mock process properties
 const createMockProcess = (overrides = {}) => ({
@@ -75,6 +80,9 @@ describe('Electron Operations', () => {
     vi.mocked(access).mockResolvedValue(undefined);
     vi.mocked(cp).mockResolvedValue(undefined);
     vi.mocked(confirm).mockResolvedValue(true);
+    vi.mocked(rename).mockResolvedValue(undefined);
+    vi.mocked(readFile).mockResolvedValue('let win: BrowserWindow | null;');
+    vi.mocked(writeFile).mockResolvedValue(undefined);
 
     // Mock execa with a proper implementation
     vi.mocked(execa).mockImplementation(() => {
@@ -105,6 +113,48 @@ describe('Electron Operations', () => {
 
   afterEach(() => {
     vi.resetAllMocks();
+  });
+
+  describe('convertToJavaScript', () => {
+    it('should convert TypeScript files to JavaScript', async () => {
+      const { convertToJavaScript } = await import(
+        '../bin/electron-operations'
+      );
+      const targetPath = '/test/path';
+
+      await convertToJavaScript(targetPath);
+
+      expect(rename).toHaveBeenCalledWith(
+        '/test/path/electron/main.ts',
+        '/test/path/electron/main.js'
+      );
+      expect(rename).toHaveBeenCalledWith(
+        '/test/path/electron/preload.ts',
+        '/test/path/electron/preload.js'
+      );
+      expect(writeFile).toHaveBeenCalledWith(
+        '/test/path/electron/main.js',
+        'let win;',
+        'utf-8'
+      );
+    });
+
+    it('should handle errors during conversion', async () => {
+      vi.mocked(rename).mockRejectedValueOnce(new Error('Rename failed'));
+
+      const { convertToJavaScript } = await import(
+        '../bin/electron-operations'
+      );
+      const targetPath = '/test/path';
+
+      await expect(convertToJavaScript(targetPath)).rejects.toThrow(
+        'Rename failed'
+      );
+      expect(console.error).toHaveBeenCalledWith(
+        'Error converting to JavaScript:',
+        'Rename failed'
+      );
+    });
   });
 
   describe('installElectronDependencies', () => {
@@ -198,14 +248,12 @@ describe('Electron Operations', () => {
 
   describe('copyElectronFiles', () => {
     it('should copy files when directory does not exist', async () => {
-      vi.mocked(access).mockRejectedValueOnce(new Error('ENOENT'));
-
       const { copyElectronFiles } = await import('../bin/electron-operations');
       await copyElectronFiles('test-path');
 
-      expect(vi.mocked(cp)).toHaveBeenCalledWith(
-        expect.stringContaining('electron'),
-        expect.stringContaining('test-path/electron'),
+      expect(cp).toHaveBeenCalledWith(
+        '/mock/templates/base/electron',
+        'test-path/electron',
         { recursive: true }
       );
     });

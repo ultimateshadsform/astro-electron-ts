@@ -80,24 +80,32 @@ export const addElectronIntegration = async (): Promise<void> => {
   }
 };
 
-export async function convertToJavaScript() {
-  const electronDir = path.join(process.cwd(), 'electron');
-  await rename(
-    path.join(electronDir, 'main.ts'),
-    path.join(electronDir, 'main.js')
-  );
-  await rename(
-    path.join(electronDir, 'preload.ts'),
-    path.join(electronDir, 'preload.js')
-  );
+export async function convertToJavaScript(targetPath: string) {
+  const electronDir = path.join(targetPath, 'electron');
+  try {
+    await rename(
+      path.join(electronDir, 'main.ts'),
+      path.join(electronDir, 'main.js')
+    );
+    await rename(
+      path.join(electronDir, 'preload.ts'),
+      path.join(electronDir, 'preload.js')
+    );
 
-  const mainJsPath = path.join(electronDir, 'main.js');
-  let mainJsContent = await readFile(mainJsPath, 'utf-8');
-  mainJsContent = mainJsContent.replace(
-    /let win: BrowserWindow \| null;/,
-    'let win;'
-  );
-  await writeFile(mainJsPath, mainJsContent, 'utf-8');
+    const mainJsPath = path.join(electronDir, 'main.js');
+    let mainJsContent = await readFile(mainJsPath, 'utf-8');
+    mainJsContent = mainJsContent.replace(
+      /let win: BrowserWindow \| null;/,
+      'let win;'
+    );
+    await writeFile(mainJsPath, mainJsContent, 'utf-8');
+  } catch (error) {
+    console.error(
+      'Error converting to JavaScript:',
+      error instanceof Error ? error.message : String(error)
+    );
+    throw error;
+  }
 }
 
 export async function copyElectronFiles(targetPath: string) {

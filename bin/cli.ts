@@ -2,7 +2,12 @@ import { confirm, input, select } from '@inquirer/prompts';
 import path from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 
-import { getPackageManager, getRunCommand, isExitPromptError } from './utils';
+import {
+  getPackageManager,
+  getRunCommand,
+  isExitPromptError,
+  isTest,
+} from './utils';
 import type { PackageManager } from './types';
 
 import {
@@ -78,11 +83,19 @@ export async function main(
       console.log('\nOperation cancelled');
       return;
     }
+    if (error instanceof Error && error.message === 'USER_CANCELLED') {
+      console.log('Operation cancelled');
+      return;
+    }
     console.error(
       'Failed to run CLI:',
       error instanceof Error ? error.message : String(error)
     );
-    process.exit(1);
+
+    if (!isTest()) {
+      process.exit(1);
+    }
+    throw error;
   }
 }
 
@@ -126,7 +139,7 @@ export async function addElectronToExisting() {
   if (!projectStatus.electronFilesExist) {
     await copyElectronFiles(currentDir);
     if (isJS) {
-      await convertToJavaScript();
+      await convertToJavaScript(currentDir);
     }
   }
 

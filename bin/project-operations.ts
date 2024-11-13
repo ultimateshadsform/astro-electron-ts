@@ -8,13 +8,9 @@ import { getTemplateType } from './template-operations';
 import { convertToJavaScript, copyElectronFiles } from './electron-operations';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEMPLATE_PATH = path.join(__dirname, '..', '..', 'templates');
+const TEMPLATE_PATH = path.join(__dirname, '..', 'templates');
 export const BASE_TEMPLATE_PATH = path.join(TEMPLATE_PATH, 'base');
-export const ELECTRON_TEMPLATE_PATH = path.join(
-  TEMPLATE_PATH,
-  'base',
-  'electron'
-);
+export const ELECTRON_TEMPLATE_PATH = path.join(BASE_TEMPLATE_PATH, 'electron');
 
 export const createNewProject = async (
   projectName: string,
@@ -30,6 +26,7 @@ export const createNewProject = async (
 
   await handleExistingDirectory(targetPath);
 
+  await fs.mkdir(targetPath, { recursive: true });
   await fs.cp(BASE_TEMPLATE_PATH, targetPath, { recursive: true });
 
   if (templateType === 'javascript') {
@@ -58,10 +55,13 @@ async function handleExistingDirectory(targetPath: string) {
     });
 
     if (!overwrite) {
-      console.log('Operation cancelled');
-      process.exit(0);
+      throw new Error('USER_CANCELLED');
     }
   } catch (error: unknown) {
+    if (error instanceof Error && error.message === 'USER_CANCELLED') {
+      throw error;
+    }
+
     if (
       error instanceof Error &&
       'code' in error &&
@@ -88,7 +88,7 @@ async function configureJavaScript(targetPath: string) {
   }
 
   await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
-  await convertToJavaScript();
+  await convertToJavaScript(targetPath);
 
   const astroConfigPath = path.join(targetPath, 'astro.config.mjs');
   const astroConfigContent = `

@@ -7,14 +7,6 @@ const baseConfig: Options = {
   clean: true,
   bundle: true,
   shims: true,
-  external: [
-    'node:tty',
-    'node:fs',
-    'node:path',
-    'node:process',
-    'node:url',
-    'node:fs/promises',
-  ],
   platform: 'node',
   target: ['node18', 'node20', 'node22'],
 };
@@ -32,9 +24,18 @@ export default defineConfig([
   {
     ...baseConfig,
     entry: ['bin/index.ts'],
-    noExternal: ['detect-package-manager', 'commander', '@inquirer/prompts'],
     outDir: 'dist/bin',
-    format: 'esm',
+    format: ['cjs'],
+    external: [
+      /^node:/,
+      'events',
+      'util',
+      'stream',
+      'buffer',
+      'path',
+      'fs',
+      'os',
+    ],
     define: {
       VERSION: JSON.stringify(packageJson.version),
     },

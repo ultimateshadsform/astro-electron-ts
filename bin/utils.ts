@@ -86,3 +86,7 @@ export const getRunCommand = (
       return `npm run ${script}`;
   }
 };
+
+export function isTest(): boolean {
+  return process.env.NODE_ENV === 'test';
+}

@@ -1,62 +1,65 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { confirm } from '@inquirer/prompts';
-import fs from 'fs/promises';
-import { execa } from 'execa';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { main } from '../../bin/cli';
+import { confirm, input, select } from '@inquirer/prompts';
+import fs from 'node:fs/promises';
 
-vi.mock('@inquirer/prompts');
-vi.mock('fs/promises');
-vi.mock('execa');
+// Mock utils module
+vi.mock('../../bin/utils', () => ({
+  isTest: () => true,
+  isExitPromptError: (error: unknown) => false,
+  getPackageManager: vi.fn().mockResolvedValue('npm'),
+  getRunCommand: vi.fn().mockReturnValue('npm run dev'),
+  getInstallCommand: vi.fn().mockReturnValue('npm install'),
+}));
+
+// Mock project-operations
+vi.mock('../../bin/project-operations', () => ({
+  createNewProject: vi.fn().mockImplementation(async () => {
+    throw new Error('Installation failed');
+  }),
+}));
+
+// Mock project checks to trigger new project creation path
+vi.mock('../../bin/project-checks', () => ({
+  isAstroProject: vi.fn().mockResolvedValue(false),
+  isElectronProject: vi.fn().mockResolvedValue(false),
+  hasMainField: vi.fn().mockResolvedValue(false),
+  isJavaScriptProject: vi.fn().mockResolvedValue(false),
+  hasElectronFiles: vi.fn().mockResolvedValue(false),
+}));
+
+vi.mock('@inquirer/prompts', () => ({
+  confirm: vi.fn().mockResolvedValue(true),
+  input: vi.fn().mockResolvedValue('test-project'),
+  select: vi.fn().mockResolvedValue('npm'),
+}));
 
 describe('Error Handling', () => {
   beforeEach(() => {
+    process.env.NODE_ENV = 'test';
     vi.clearAllMocks();
-    vi.resetModules();
-
-    // Mock fs operations
-    vi.mocked(fs.readFile).mockResolvedValue(
-      JSON.stringify({
-        devDependencies: { astro: '^1.0.0' },
-      })
-    );
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
-    vi.mocked(fs.access).mockResolvedValue(undefined);
-
-    // Mock console and process
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-
-    // Mock execa
-    vi.mocked(execa).mockResolvedValue({
-      stdout: '',
-      stderr: '',
-      exitCode: 0,
-      failed: false,
-      killed: false,
-      signal: null,
-      command: '',
-      timedOut: false,
-    } as any);
-  });
-
-  afterEach(() => {
-    vi.resetAllMocks();
   });
 
   it('should handle dependency installation errors', async () => {
-    vi.mocked(confirm).mockResolvedValue(true);
-    vi.mocked(execa).mockRejectedValueOnce(new Error('Installation failed'));
+    const mockExit = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never);
+    const mockConsoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
 
-    const { main } = await import('../../bin/cli');
-    await main().catch(() => {
-      console.error(
-        'Error installing Electron dependencies:',
-        'Installation failed'
-      );
-    });
-    expect(console.error).toHaveBeenCalledWith(
-      'Error installing Electron dependencies:',
+    // The error should be thrown and caught
+    await expect(main()).rejects.toThrow('Installation failed');
+
+    expect(mockConsoleError).toHaveBeenCalledWith(
+      'Failed to run CLI:',
       'Installation failed'
     );
-    expect(process.exit).toHaveBeenCalledWith(1);
+
+    // process.exit should not be called in test mode
+    expect(mockExit).not.toHaveBeenCalled();
+
+    mockExit.mockRestore();
+    mockConsoleError.mockRestore();
   });
 });
