@@ -1,6 +1,37 @@
+# Dependencies
 node_modules/
+**/node_modules/
+
+# Build outputs
 dist/
+**/dist/
+
+# Package files
 *.tgz
 *.tar.gz
-templates/**/bun.lockb
+
+# Test artifacts
 test-projects/
+coverage/
+**/coverage/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

@@ -14,7 +14,7 @@ export default defineConfig({
   platform: 'node',
   target: ['node16', 'node18', 'node20'],
   noExternal: ['commander', '@inquirer/prompts'],
-  external: [/^node:/, 'astro-electron-ts'],
+  external: [/^node:/],
   env: {
     VERSION: pkg.version,
     APP_NAME: pkg.name,

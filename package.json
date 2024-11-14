@@ -1,5 +1,10 @@
 {
   "name": "astro-electron-ts-monorepo",
+  "description": "Monorepo for Astro Electron TS",
+  "repository": "github:ultimateshadsform/astro-electron-ts",
+  "homepage": "https://github.com/ultimateshadsform/astro-electron-ts",
+  "license": "MIT",
+  "author": "SHADXW",
   "private": true,
   "type": "module",
   "workspaces": [
