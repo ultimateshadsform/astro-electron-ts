@@ -4,6 +4,14 @@ Thank you for considering contributing to our project! We welcome contributions 
 
 ## 🤝 How to Contribute
 
+> [!NOTE]
+> This project uses [Bun](https://bun.sh/) to manage dependencies.
+
+> [!IMPORTANT]
+> We use [antfu's eslint config](https://github.com/antfu/eslint-config) for linting.
+
+Make sure to follow eslint rules when writing code.
+
 1. **Fork the Repository**: Start by forking the repository to your own GitHub account.
 
 2. **Clone Your Fork**: Clone your forked repository to your local machine.
