@@ -55,10 +55,6 @@ Make sure to follow eslint rules when writing code.
 
 7. **Open a Pull Request**: Go to the original repository and open a pull request with a description of your changes.
 
-## 📜 Code of Conduct
-
-Please note that this project is released with a [Contributor Code of Conduct](CODE_OF_CONDUCT.md). By participating in this project, you agree to abide by its terms.
-
 ## 🐛 Reporting Issues
 
 If you encounter any issues, please report them in the [issue tracker](https://github.com/your-repo/issues).
