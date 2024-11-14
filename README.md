@@ -8,8 +8,8 @@ For detailed usage instructions, please refer to the [README.md](packages/astro-
 
 ## 📦 Packages
 
-- **create-astro-electron-ts**: A package for creating Astro and Electron projects with TypeScript.
-- **astro-electron-ts**: The core package for Astro and Electron integration.
+- **create-astro-electron-ts**: The CLI for creating Astro and Electron projects and adding Electron to existing Astro projects.
+- **astro-electron-ts**: The core package for Astro Electron integration.
 
 ## 🧰 Contributing
 
