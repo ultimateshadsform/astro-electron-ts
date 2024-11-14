@@ -1,4 +1,4 @@
-// eslint.config.js
+// eslint.config.mjs
 import antfu from '@antfu/eslint-config'
 
 export default antfu({
@@ -9,12 +9,14 @@ export default antfu({
   stylistic: {
     indent: 2, // 4, or 'tab'
     quotes: 'single', // or 'double'
+    semicolons: 'always',
   },
 
   // TypeScript and Vue are autodetected, you can also explicitly enable them:
   typescript: true,
 
   // Disable jsonc and yaml support
+  json: true,
   jsonc: false,
   yaml: false,
 
