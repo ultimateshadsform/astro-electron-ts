@@ -119,7 +119,7 @@ console.log('preload.ts');
 
 ### Using the CLI (Experimental)
 
-> ⚠️ Note: The CLI is currently in experimental status and may be unstable. We recommend using the manual installation method above for production projects.
+> [!WARNING] The CLI is currently in experimental status and may be unstable. We recommend using the manual installation method above for production projects.
 
 If you'd like to try the CLI:
 
