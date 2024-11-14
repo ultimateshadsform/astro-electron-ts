@@ -17,27 +17,9 @@ Build cross-platform desktop applications with Astro and Electron. This integrat
 - Supports both TypeScript and JavaScript out of the box
 - I aim to fix and close any issues as soon as possible
 
-## 📦 Quick Start
+## 📦 Installation
 
-### Using the CLI (Recommended)
-
-The easiest way to get started is using our CLI:
-
-```bash
-# You run the same command for both new and existing projects
-npx astro-electron-ts@latest
-```
-
-The CLI will:
-
-1. Auto-detect your project setup
-2. Install necessary dependencies using your preferred package manager
-3. Add required configuration files
-4. Set up Electron with TypeScript support
-
-### Manual Installation
-
-If you prefer to set things up manually, follow these steps:
+### Manual Installation (Recommended)
 
 1. Install the dependencies:
 
@@ -134,6 +116,23 @@ app.whenReady().then(createWindow);
 // electron/preload.ts
 console.log('preload.ts');
 ```
+
+### Using the CLI (Experimental)
+
+> ⚠️ Note: The CLI is currently in experimental status and may be unstable. We recommend using the manual installation method above for production projects.
+
+If you'd like to try the CLI:
+
+```bash
+npx astro-electron-ts@latest
+```
+
+The CLI will:
+
+1. Auto-detect your project setup
+2. Install necessary dependencies using your preferred package manager
+3. Add required configuration files
+4. Set up Electron with TypeScript support
 
 ## ⚙️ Configuration
 
