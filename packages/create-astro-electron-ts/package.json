@@ -15,6 +15,9 @@
     "cli",
     "create-app"
   ],
+  "bin": {
+    "create-astro-electron-ts": "./dist/bin/index.cjs"
+  },
   "files": [
     "dist",
     "templates"
@@ -30,5 +33,9 @@
     "vitest": "2.1.5",
     "typescript": "^5.3.3",
     "rimraf": "^6.0.1"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.1.0",
+    "detect-package-manager": "^3.0.2"
   }
 }
