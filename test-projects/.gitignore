@@ -1,0 +1,8 @@
+# Test projects
+# This folder is used to create Astro apps for testing.
+
+# Ignore all files in this directory
+*
+
+# Except this .gitignore file
+!.gitignore 
