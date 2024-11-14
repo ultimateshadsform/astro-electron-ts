@@ -1,0 +1,28 @@
+{
+  "name": "create-astro-electron-ts",
+  "version": "1.0.20",
+  "description": "CLI tool for creating Astro + Electron projects",
+  "type": "module",
+  "bin": "dist/bin/index.cjs",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun run clean && tsup",
+    "dev": "tsup --watch",
+    "clean": "bun rimraf dist",
+    "prepublishOnly": "bun run build"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.1.0",
+    "commander": "12.1.0",
+    "detect-package-manager": "^3.0.2",
+    "execa": "^9.5.1"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.0",
+    "@types/node": "22.9.0",
+    "astro-electron-ts": "workspace:*",
+    "rimraf": "^5.0.5"
+  }
+}

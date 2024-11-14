@@ -2,26 +2,11 @@
   "compilerOptions": {
     "target": "esnext",
     "module": "ESNext",
-    "lib": ["esnext"],
-    "skipLibCheck": true,
-
-    /* Bundler mode */
-    "moduleResolution": "node",
-    "isolatedModules": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-
-    /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-
-    "baseUrl": ".",
-    "outDir": "dist",
+    "moduleResolution": "bundler",
+    "allowJs": true,
     "esModuleInterop": true,
-    "resolveJsonModule": true
-  },
-  "include": ["src/**/*", "bin/**/*", "__tests__/**/*"],
-  "exclude": ["node_modules", "dist"]
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  }
 }
