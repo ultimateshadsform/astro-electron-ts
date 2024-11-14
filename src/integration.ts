@@ -62,23 +62,35 @@ export const integration = (
     }: {
       dir: URL;
       routes: RouteData[];
-      // ... other properties
     }) => {
       await Promise.all(
         routes.map(async (route) => {
           if (route.distURL) {
-            const filePath = new URL(route.distURL).pathname;
-            const file = await fs.readFile(filePath, 'utf-8');
-            const localDir = path.dirname(filePath);
-            const relativePath = path.relative(localDir, new URL(dir).pathname);
+            // Convert URL to a proper file path
+            const filePath = route.distURL.pathname;
+            // Remove any potential double slashes and fix Windows paths
+            const normalizedPath = filePath
+              .replace(/^\//, '')
+              .replace(/\\/g, '/');
 
-            await fs.writeFile(
-              route.distURL,
-              file.replaceAll(
-                /\/(astro-electron-ts|public)/g,
-                relativePath || '.'
-              )
-            );
+            try {
+              const file = await fs.readFile(normalizedPath, 'utf-8');
+              const localDir = path.dirname(normalizedPath);
+              const relativePath = path
+                .relative(localDir, new URL(dir).pathname)
+                .replace(/\\/g, '/'); // Normalize path separators
+
+              await fs.writeFile(
+                normalizedPath,
+                file.replaceAll(
+                  /\/(astro-electron-ts|public)/g,
+                  relativePath || '.'
+                )
+              );
+            } catch (error) {
+              console.error(`Error processing file ${normalizedPath}:`, error);
+              throw error;
+            }
           }
         })
       );

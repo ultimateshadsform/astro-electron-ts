@@ -225,5 +225,43 @@ describe('astro-electron integration', () => {
       expect(fs.default.readFile).toHaveBeenCalled();
       expect(fs.default.writeFile).toHaveBeenCalled();
     });
+
+    it('should handle Windows paths correctly', async () => {
+      const electronIntegration = integration();
+      const buildHook = electronIntegration.hooks['astro:build:done'];
+
+      if (!buildHook) throw new Error('Build hook not defined');
+
+      const mockRoutes: RouteData[] = [
+        {
+          route: '/',
+          component: '',
+          generate: vi.fn(),
+          params: [],
+          pattern: /\//,
+          segments: [[]],
+          type: 'page',
+          prerender: false,
+          distURL: new URL('file:///C:/path/to/dist/index.html'),
+          fallbackRoutes: [],
+          isIndex: false,
+          redirect: undefined,
+        },
+      ];
+
+      await buildHook({
+        dir: new URL('file:///C:/path/to/dist/'),
+        routes: mockRoutes,
+        logger: mockLogger,
+        pages: [{ pathname: 'index.html' }],
+        cacheManifest: false,
+      });
+
+      const fs = await import('fs/promises');
+      expect(fs.default.readFile).toHaveBeenCalledWith(
+        'C:/path/to/dist/index.html',
+        'utf-8'
+      );
+    });
   });
 });
