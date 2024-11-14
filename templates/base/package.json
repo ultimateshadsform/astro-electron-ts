@@ -6,6 +6,15 @@
   "type": "module",
   "version": "0.0.1",
   "main": "dist-electron/main.js",
+  "build": {
+    "files": [
+      "dist-electron",
+      "dist"
+    ],
+    "directories": {
+      "output": "release/${version}"
+    }
+  },
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
@@ -16,13 +25,21 @@
     "electron:build": "electron-builder"
   },
   "dependencies": {
+<<<<<<< HEAD
     "@astrojs/check": "^0.9.4",
     "astro": "^4.16.10",
     "astro-electron-ts": "1.0.25",
     "electron": "^33.2.0",
     "typescript": "^5.6.3"
+=======
+    "astro": "^4.16.10"
+>>>>>>> dc85931450f24bdd7c37d970fcec77fe617f39ea
   },
   "devDependencies": {
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "electron": "^33.2.0",
+    "@astrojs/check": "^0.9.4",
+    "astro-electron-ts": "latest",
+    "typescript": "^5.6.3"
   }
 }
