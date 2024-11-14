@@ -9,6 +9,7 @@ Thank you for considering contributing to our project! We welcome contributions 
 
 > [!IMPORTANT]
 > We use [antfu's eslint config](https://github.com/antfu/eslint-config) for linting.
+> Make sure you wrote tests for your changes. Or all tests must pass before your changes can be merged.
 
 Make sure to follow eslint rules when writing code.
 
