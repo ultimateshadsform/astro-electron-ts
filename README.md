@@ -124,7 +124,7 @@ console.log('preload.ts');
 If you'd like to try the CLI:
 
 ```bash
-npx astro-electron-ts@latest
+<package-manager> create astro-electron-ts@latest
 ```
 
 The CLI will:
@@ -133,6 +133,7 @@ The CLI will:
 2. Install necessary dependencies using your preferred package manager
 3. Add required configuration files
 4. Set up Electron with TypeScript support
+5. If no project is found, it will create a new project based on the default template
 
 ## ⚙️ Configuration
 
