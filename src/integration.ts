@@ -170,19 +170,17 @@ export const integration = (
                   }
 
                   // Handle hash routes specifically
-                  if (pathname.startsWith('/#/')) {
-                    const distPath = path
-                      .join(projectRoot, 'dist')
-                      .replace(/\\/g, '/');
-                    return `${attr}="file://${distPath}/index.html${pathname.slice(
-                      1
-                    )}"`;
+                  if (pathname.startsWith('/#/') || pathname.startsWith('#/')) {
+                    // Just preserve the hash route as-is
+                    return pathname.startsWith('/#/')
+                      ? `${attr}="${pathname.slice(1)}"`
+                      : match;
                   }
 
                   // Convert to hash routes only in hash-routing components
                   if (isHashRouting) {
                     const routePath = cleanPath.replace(/\/+$/, '');
-                    return `${attr}="#${routePath}"`;
+                    return `${attr}="#/${routePath}"`;
                   }
 
                   // For regular links in production, use absolute paths from dist

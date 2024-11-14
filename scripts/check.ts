@@ -69,13 +69,7 @@ async function checkTemplates() {
     }
 
     // Required dependencies
-    const requiredDeps = [
-      'astro',
-      'electron',
-      'astro-electron-ts',
-      '@astrojs/check',
-      'typescript',
-    ];
+    const requiredDeps = ['astro'];
     for (const dep of requiredDeps) {
       if (!packageJson.dependencies?.[dep]) {
         errors.push(`${template} template missing ${dep} in dependencies`);
@@ -83,7 +77,13 @@ async function checkTemplates() {
     }
 
     // Required dev dependencies
-    const requiredDevDeps = ['electron-builder'];
+    const requiredDevDeps = [
+      'electron-builder',
+      'electron',
+      'astro-electron-ts',
+      '@astrojs/check',
+      'typescript',
+    ];
     for (const dep of requiredDevDeps) {
       if (!packageJson.devDependencies?.[dep]) {
         errors.push(`${template} template missing ${dep} in devDependencies`);

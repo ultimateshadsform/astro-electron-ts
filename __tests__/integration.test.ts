@@ -319,6 +319,8 @@ describe('astro-electron integration', () => {
         import { createHashRouter } from 'react-router-dom';
         <a href="/about">About</a>
         <a href="/blog">Blog</a>
+        <a href="#/existing">Existing Hash</a>
+        <a href="/#/also-existing">Also Existing Hash</a>
       `;
 
       const fs = await import('fs/promises');
@@ -365,8 +367,11 @@ describe('astro-electron integration', () => {
       const content = componentWriteCall?.[1];
 
       // Check that links are converted to hash routes in router components
-      expect(content).toContain('href="#about"');
-      expect(content).toContain('href="#blog"');
+      expect(content).toContain('href="#/about"');
+      expect(content).toContain('href="#/blog"');
+      // Check that existing hash routes are preserved
+      expect(content).toContain('href="#/existing"');
+      expect(content).toContain('href="#/also-existing"');
     });
 
     it('should handle _astro directory assets correctly', async () => {
