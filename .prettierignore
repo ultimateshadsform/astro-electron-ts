@@ -1,2 +1,2 @@
-# Ignore everything
+# Ignore everything since we want to use eslint instead of prettier
 *
