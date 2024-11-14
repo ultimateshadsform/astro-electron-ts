@@ -40,6 +40,7 @@ export const integration = (
       // Add Vite plugin for Electron
       updateConfig({
         vite: {
+          base: './',
           plugins: [
             vitePluginElectron({
               main: {
@@ -67,14 +68,11 @@ export const integration = (
       await Promise.all(
         routes.map(async (route) => {
           if (route.distURL) {
-            // Get the file path, handling both Windows and Unix paths
             const filePath = route.distURL.pathname;
-
-            // For Windows, remove the leading slash and drive letter format
             const normalizedPath = filePath
-              .replace(/^\/([A-Za-z]:)/, '$1') // Remove leading slash before drive letter
-              .replace(/^\//, '') // Remove leading slash for non-Windows paths
-              .replace(/\\/g, '/'); // Normalize backslashes to forward slashes
+              .replace(/^\/([A-Za-z]:)/, '$1')
+              .replace(/^\//, '')
+              .replace(/\\/g, '/');
 
             try {
               const file = await fs.readFile(normalizedPath, 'utf-8');
@@ -83,24 +81,39 @@ export const integration = (
                 .replace(/^\/([A-Za-z]:)/, '$1')
                 .replace(/\/$/, '');
 
-              // Get the relative path from the HTML file to the root directory
               const relativePath = path
                 .relative(localDir, rootDir)
-                .replace(/\\/g, '/') // Normalize path separators
-                .replace(/\/$/, ''); // Remove trailing slash
+                .replace(/\\/g, '/')
+                .replace(/\/$/, '');
 
-              // Replace absolute paths with relative paths and append index.html where needed
               const updatedContent = file.replace(
-                /(href|src)="\/([^"]*?)"/g,
+                /(href|src)="([^"]*?)"/g,
                 (_match, attr, pathname) => {
+                  // Don't modify hash routes at all
+                  if (pathname.includes('#')) {
+                    return `${attr}="${pathname}"`;
+                  }
+
+                  // Don't modify relative paths
+                  if (!pathname.startsWith('/')) {
+                    return `${attr}="${pathname}"`;
+                  }
+
                   const prefix = relativePath ? relativePath : '.';
-                  // Append index.html to directory paths (those ending with /)
-                  const adjustedPath = pathname.endsWith('/')
+
+                  // Handle assets and HTML files
+                  const isAsset = pathname.match(
+                    /\.(js|css|png|jpg|jpeg|gif|svg|ico)$/
+                  );
+                  const adjustedPath = isAsset
+                    ? pathname
+                    : pathname.endsWith('/')
                     ? pathname + 'index.html'
                     : pathname.endsWith('.html')
                     ? pathname
                     : pathname + '/index.html';
-                  return `${attr}="${prefix}/${adjustedPath}"`;
+
+                  return `${attr}="${prefix}${adjustedPath}"`;
                 }
               );
 
