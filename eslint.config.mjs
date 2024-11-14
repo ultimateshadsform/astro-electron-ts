@@ -9,7 +9,7 @@ export default antfu({
   stylistic: {
     indent: 2, // 4, or 'tab'
     quotes: 'single', // or 'double'
-    semicolons: 'always',
+    semi: true,
   },
 
   // TypeScript and Vue are autodetected, you can also explicitly enable them:

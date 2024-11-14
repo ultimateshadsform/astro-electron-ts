@@ -14,16 +14,28 @@
     "build": "bun run build:create && bun run build:integration",
     "build:create": "bun run --cwd packages/create-astro-electron-ts build",
     "build:integration": "bun run --cwd packages/astro-electron-ts build",
-    "dev": "bun run dev:create && bun run dev:integration",
+
+    "dev": "concurrently \"bun run dev:create\" \"bun run dev:integration\"",
     "dev:create": "bun run --cwd packages/create-astro-electron-ts dev",
     "dev:integration": "bun run --cwd packages/astro-electron-ts dev",
-    "test": "bun run test:create && bun run test:integration",
+
+    "test": "concurrently \"bun run test:create\" \"bun run test:integration\"",
     "test:create": "bun run --cwd packages/create-astro-electron-ts test",
     "test:integration": "bun run --cwd packages/astro-electron-ts test",
+
+    "lint": "concurrently \"bun run lint:create\" \"bun run lint:integration\"",
+    "lint:create": "bun run --cwd packages/create-astro-electron-ts lint",
+    "lint:integration": "bun run --cwd packages/astro-electron-ts lint",
+    
+    "lint:fix": "concurrently \"bun run lint:fix:create\" \"bun run lint:fix:integration\"",
+    "lint:fix:create": "bun run --cwd packages/create-astro-electron-ts lint:fix",
+    "lint:fix:integration": "bun run --cwd packages/astro-electron-ts lint:fix",
+
     "clean": "bun rimraf packages/*/dist"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^3.8.0",
+    "concurrently": "^9.1.0",
     "eslint": "^9.14.0",
     "rimraf": "6.0.1"
   }

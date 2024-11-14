@@ -1,6 +1,7 @@
-import type { OptionValues } from 'commander';
-
-export interface CreateOptions extends OptionValues {
-  typescript: boolean;
-  install: boolean;
+/**
+ * Options for the create command.
+ */
+export interface CreateOptions {
+  typescript: boolean
+  install: boolean
 }

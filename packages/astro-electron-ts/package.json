@@ -20,7 +20,9 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "exports": {
     ".": {
