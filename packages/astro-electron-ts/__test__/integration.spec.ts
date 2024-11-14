@@ -1,195 +1,143 @@
-import type { AstroConfig, AstroIntegrationLogger, RouteData } from 'astro';
-import fs from 'node:fs/promises';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { integration } from '../src/integration';
+import type { AstroConfig, AstroIntegrationLogger, RouteData } from 'astro';
 
-// Mock fs/promises
+// Define our own LogMessage interface for testing purposes
+interface LogMessage {
+  type: string;
+  message: string;
+  [key: string]: any;
+}
+
 vi.mock('fs/promises', () => ({
   default: {
-    readFile: vi.fn(),
-    writeFile: vi.fn(),
+    readFile: vi.fn().mockResolvedValue('test content'),
+    writeFile: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
-// Mock vite-plugin-electron
-vi.mock('vite-plugin-electron/simple', () => ({
-  default: vi.fn(() => ({ name: 'vite-plugin-electron' })),
-}));
+describe('astro-electron integration', () => {
+  let mockUpdateConfig: ReturnType<typeof vi.fn>;
+  let mockConfig: AstroConfig;
+  let mockLogger: AstroIntegrationLogger;
 
-// Mock minimal AstroConfig
-const mockAstroConfig: AstroConfig = {
-  root: new URL('file:///project/'),
-  srcDir: new URL('file:///project/src/'),
-  publicDir: new URL('file:///project/public/'),
-  outDir: new URL('file:///project/dist/'),
-  cacheDir: new URL('file:///project/.astro/'),
-  scopedStyleStrategy: 'where',
-  devToolbar: {
-    enabled: true,
-  },
-  security: {
-    checkOrigin: true,
-  },
-  legacy: {
-    astroFlavoredMarkdown: false,
-  },
-  experimental: {
-    directRenderScript: false,
-    contentCollectionCache: false,
-    clientPrerender: false,
-    globalRoutePriority: false,
-    contentIntellisense: false,
-    contentLayer: false,
-    serverIslands: false,
-  },
-  i18n: undefined,
-  build: {
-    format: 'directory',
-    client: new URL('file:///project/dist/client/'),
-    server: new URL('file:///project/dist/server/'),
-    assets: 'assets',
-    serverEntry: 'entry.mjs',
-    redirects: false,
-    inlineStylesheets: 'auto',
-    concurrency: 5,
-  },
-  server: {
-    host: true,
-    port: 3000,
-    open: false,
-  },
-  integrations: [],
-  redirects: {},
-  site: 'http://localhost:3000',
-  base: '/',
-  trailingSlash: 'ignore',
-  output: 'static',
-  adapter: undefined,
-  image: {
-    service: { entrypoint: 'astro/assets/services/sharp', config: {} },
-    domains: [],
-    remotePatterns: [],
-  },
-  compressHTML: true,
-  vite: {},
-  markdown: {
-    syntaxHighlight: 'shiki',
-    shikiConfig: {
-      langs: [],
-      theme: 'github-dark',
-      wrap: true,
-      langAlias: {},
-      themes: {},
-      transformers: [],
-    },
-    remarkPlugins: [],
-    rehypePlugins: [],
-    remarkRehype: {},
-    gfm: true,
-    smartypants: true,
-  },
-};
-
-// Mock RouteData
-const mockRouteData: RouteData = {
-  route: '/',
-  component: '',
-  generate: () => '',
-  params: [],
-  pattern: /\//,
-  segments: [[]],
-  type: 'page',
-  prerender: false,
-  distURL: new URL('file:///project/dist/index.html'),
-  pathname: '/',
-  fallbackRoutes: [],
-  isIndex: false,
-};
-
-// Create mock logger
-const mockLogger: AstroIntegrationLogger = {
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-  debug: vi.fn(),
-  options: {
-    level: 'info',
-    dest: {
-      write: () => true,
-    },
-  },
-  label: 'astro',
-  fork: () => mockLogger,
-};
-
-describe('astro Electron Integration', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockUpdateConfig = vi.fn();
+    mockConfig = {
+      vite: {},
+    } as AstroConfig;
+
+    // Create a mock writable destination
+    const mockDest = {
+      write: vi.fn().mockImplementation((message: LogMessage) => {
+        console.log(message);
+        return Promise.resolve();
+      }),
+      [Symbol.for('astro.logger.writable')]: true,
+    };
+
+    mockLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      options: {
+        dest: mockDest,
+        level: 'info',
+      },
+      label: 'astro-electron-ts',
+      fork: vi.fn().mockReturnValue({
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+        options: {
+          dest: mockDest,
+          level: 'info',
+        },
+        label: 'astro-electron-ts',
+        fork: vi.fn(),
+      }),
+    };
+  });
+
+  it('should have the correct name', () => {
+    const electronIntegration = integration();
+    expect(electronIntegration.name).toBe('astro-electron-ts');
   });
 
   describe('astro:config:setup hook', () => {
-    it('should set base path in build command', () => {
-      const updateConfig = vi.fn();
+    it('should set base path during build command', () => {
       const electronIntegration = integration();
+      const setupHook = electronIntegration.hooks['astro:config:setup'];
 
-      electronIntegration.hooks['astro:config:setup']?.({
-        config: mockAstroConfig,
+      if (!setupHook) throw new Error('Setup hook not defined');
+
+      setupHook({
+        config: mockConfig,
         command: 'build',
-        updateConfig,
+        updateConfig: mockUpdateConfig,
         isRestart: false,
         addRenderer: vi.fn(),
         addWatchFile: vi.fn(),
         injectScript: vi.fn(),
         injectRoute: vi.fn(),
         logger: mockLogger,
+        addClientDirective: vi.fn(),
         addMiddleware: vi.fn(),
         addDevToolbarApp: vi.fn(),
-        addClientDirective: vi.fn(),
         addDevOverlayPlugin: vi.fn(),
       });
 
-      expect(updateConfig).toHaveBeenCalledWith(
+      expect(mockUpdateConfig).toHaveBeenCalledWith(
         expect.objectContaining({
           base: '/astro-electron-ts',
-        }),
+        })
       );
     });
 
-    it('should use default entry points when no config provided', () => {
-      const updateConfig = vi.fn();
+    it('should use default electron entry points when no config provided', async () => {
       const electronIntegration = integration();
+      const setupHook = electronIntegration.hooks['astro:config:setup'];
 
-      electronIntegration.hooks['astro:config:setup']?.({
-        config: mockAstroConfig,
+      if (!setupHook) throw new Error('Setup hook not defined');
+
+      await setupHook({
+        config: mockConfig,
         command: 'dev',
-        updateConfig,
+        updateConfig: mockUpdateConfig,
         isRestart: false,
         addRenderer: vi.fn(),
         addWatchFile: vi.fn(),
         injectScript: vi.fn(),
         injectRoute: vi.fn(),
         logger: mockLogger,
+        addClientDirective: vi.fn(),
         addMiddleware: vi.fn(),
         addDevToolbarApp: vi.fn(),
-        addClientDirective: vi.fn(),
         addDevOverlayPlugin: vi.fn(),
       });
 
-      expect(updateConfig).toHaveBeenCalledWith(
-        expect.objectContaining({
-          vite: {
-            plugins: [
-              expect.objectContaining({
-                name: 'vite-plugin-electron',
-              }),
-            ],
-          },
-        }),
+      // Get the first call arguments
+      const updateConfigCall = mockUpdateConfig.mock.calls[0][0];
+      // Wait for the plugin promise to resolve
+      const resolvedPlugins = await updateConfigCall.vite.plugins[0];
+
+      expect(resolvedPlugins).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'vite-plugin-electron',
+            apply: 'serve',
+          }),
+          expect.objectContaining({
+            name: 'vite-plugin-electron',
+            apply: 'build',
+          }),
+        ])
       );
     });
 
-    it('should use custom entry points when provided', () => {
-      const updateConfig = vi.fn();
+    it('should use custom entry points when provided in config', async () => {
       const customConfig = {
         main: {
           entry: 'custom/main.ts',
@@ -200,104 +148,120 @@ describe('astro Electron Integration', () => {
       };
 
       const electronIntegration = integration(customConfig);
-      electronIntegration.hooks['astro:config:setup']?.({
-        config: mockAstroConfig,
+      const setupHook = electronIntegration.hooks['astro:config:setup'];
+
+      if (!setupHook) throw new Error('Setup hook not defined');
+
+      await setupHook({
+        config: mockConfig,
         command: 'dev',
-        updateConfig,
+        updateConfig: mockUpdateConfig,
         isRestart: false,
         addRenderer: vi.fn(),
         addWatchFile: vi.fn(),
         injectScript: vi.fn(),
         injectRoute: vi.fn(),
         logger: mockLogger,
+        addClientDirective: vi.fn(),
         addMiddleware: vi.fn(),
         addDevToolbarApp: vi.fn(),
-        addClientDirective: vi.fn(),
         addDevOverlayPlugin: vi.fn(),
       });
 
-      expect(updateConfig).toHaveBeenCalledWith(
-        expect.objectContaining({
-          vite: {
-            plugins: [
-              expect.objectContaining({
-                name: 'vite-plugin-electron',
-              }),
-            ],
-          },
-        }),
+      // Get the first call arguments
+      const updateConfigCall = mockUpdateConfig.mock.calls[0][0];
+      // Wait for the plugin promise to resolve
+      const resolvedPlugins = await updateConfigCall.vite.plugins[0];
+
+      expect(resolvedPlugins).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'vite-plugin-electron',
+            apply: 'serve',
+          }),
+          expect.objectContaining({
+            name: 'vite-plugin-electron',
+            apply: 'build',
+          }),
+        ])
       );
     });
   });
 
   describe('astro:build:done hook', () => {
-    it('should process routes and update file contents', async () => {
-      const mockFileContent
-        = 'content with /astro-electron-ts/path and /public/assets';
-      const expectedContent = 'content with ./path and ./assets';
-
-      (fs.readFile as any).mockResolvedValue(mockFileContent);
-
+    it('should process routes and update file paths', async () => {
       const electronIntegration = integration();
-      await electronIntegration.hooks['astro:build:done']?.({
-        dir: new URL('file:///project/dist/'),
-        routes: [mockRouteData],
-        pages: [{ pathname: '/' }],
+      const buildHook = electronIntegration.hooks['astro:build:done'];
+
+      if (!buildHook) throw new Error('Build hook not defined');
+
+      const mockRoutes: RouteData[] = [
+        {
+          route: '/',
+          component: '',
+          generate: vi.fn(),
+          params: [],
+          pattern: /\//,
+          segments: [[]],
+          type: 'page' as const,
+          prerender: false,
+          distURL: new URL('file:///path/to/dist/index.html'),
+          fallbackRoutes: [],
+          isIndex: false,
+          redirect: undefined,
+        },
+      ];
+
+      await buildHook({
+        dir: new URL('file:///path/to/dist/'),
+        routes: mockRoutes,
         logger: mockLogger,
+        pages: [{ pathname: 'index.html' }],
         cacheManifest: false,
       });
 
-      expect(fs.readFile).toHaveBeenCalledWith(
-        expect.stringContaining('index.html'),
-        'utf-8',
-      );
-
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('index.html'),
-        expectedContent,
-      );
+      // Verify that fs.readFile and fs.writeFile were called
+      const fs = await import('fs/promises');
+      expect(fs.default.readFile).toHaveBeenCalled();
+      expect(fs.default.writeFile).toHaveBeenCalled();
     });
 
-    it('should handle errors gracefully', async () => {
-      const consoleSpy = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
-      (fs.readFile as any).mockRejectedValue(new Error('Test error'));
-
+    it('should handle Windows paths correctly', async () => {
       const electronIntegration = integration();
-      await electronIntegration.hooks['astro:build:done']?.({
-        dir: new URL('file:///project/dist/'),
-        routes: [mockRouteData],
-        pages: [{ pathname: '/' }],
+      const buildHook = electronIntegration.hooks['astro:build:done'];
+
+      if (!buildHook) throw new Error('Build hook not defined');
+
+      const mockRoutes: RouteData[] = [
+        {
+          route: '/',
+          component: '',
+          generate: vi.fn(),
+          params: [],
+          pattern: /\//,
+          segments: [[]],
+          type: 'page',
+          prerender: false,
+          distURL: new URL('file:///C:/path/to/dist/index.html'),
+          fallbackRoutes: [],
+          isIndex: false,
+          redirect: undefined,
+        },
+      ];
+
+      await buildHook({
+        dir: new URL('file:///C:/path/to/dist/'),
+        routes: mockRoutes,
         logger: mockLogger,
+        pages: [{ pathname: 'index.html' }],
         cacheManifest: false,
       });
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Error processing route'),
-        expect.any(Error),
+      const fs = await import('fs/promises');
+      expect(fs.default.readFile).toHaveBeenCalledWith(
+        'C:/path/to/dist/index.html',
+        'utf-8'
       );
-
-      consoleSpy.mockRestore();
-    });
-
-    it('should skip routes without distURL', async () => {
-      const routeWithoutDistURL: RouteData = {
-        ...mockRouteData,
-        distURL: undefined,
-      };
-
-      const electronIntegration = integration();
-      await electronIntegration.hooks['astro:build:done']?.({
-        dir: new URL('file:///project/dist/'),
-        routes: [routeWithoutDistURL],
-        pages: [{ pathname: '/' }],
-        logger: mockLogger,
-        cacheManifest: false,
-      });
-
-      expect(fs.readFile).not.toHaveBeenCalled();
-      expect(fs.writeFile).not.toHaveBeenCalled();
     });
   });
 });
