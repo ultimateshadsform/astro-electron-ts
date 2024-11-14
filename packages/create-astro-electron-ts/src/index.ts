@@ -1,17 +1,17 @@
-import type { CreateOptions } from './types'
-import process from 'node:process'
-import { Command } from 'commander'
-import { addElectronToProject } from './commands/add'
-import { createNewProject } from './commands/create'
+import type { CreateOptions } from './types';
+import process from 'node:process';
+import { Command } from 'commander';
+import { addElectronToProject } from './commands/add';
+import { createNewProject } from './commands/create';
 
-const appVersion = process.env.VERSION
-const appName = process.env.APP_NAME
-const appDescription = process.env.APP_DESCRIPTION
+const appVersion = process.env.VERSION;
+const appName = process.env.APP_NAME;
+const appDescription = process.env.APP_DESCRIPTION;
 
 const program = new Command()
   .name(appName || 'astro-electron-ts')
   .description(appDescription || 'Create an Astro app with Electron')
-  .version(appVersion || '0.0.0')
+  .version(appVersion || '0.0.0');
 
 program
   .command('create')
@@ -23,11 +23,11 @@ program
     'Install dependencies after creation (default: true)',
     true,
   )
-  .action(async (name: string, options: CreateOptions) => createNewProject(name, options))
+  .action(async (name: string, options: CreateOptions) => createNewProject(name, options));
 
 program
   .command('add')
   .description('Add Electron to an existing Astro project')
-  .action(async () => addElectronToProject())
+  .action(async (options: CreateOptions) => addElectronToProject(options));
 
-program.parse(process.argv)
+program.parse(process.argv);

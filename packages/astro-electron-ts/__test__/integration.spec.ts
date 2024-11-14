@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { AstroConfig, AstroIntegrationLogger, RouteData } from 'astro';
+import fs from 'node:fs/promises';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { integration } from '../src/integration';
-import fs from 'fs/promises';
-import type { AstroConfig, RouteData, AstroIntegrationLogger } from 'astro';
 
 // Mock fs/promises
 vi.mock('fs/promises', () => ({
@@ -122,7 +122,7 @@ const mockLogger: AstroIntegrationLogger = {
   fork: () => mockLogger,
 };
 
-describe('Astro Electron Integration', () => {
+describe('astro Electron Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -151,7 +151,7 @@ describe('Astro Electron Integration', () => {
       expect(updateConfig).toHaveBeenCalledWith(
         expect.objectContaining({
           base: '/astro-electron-ts',
-        })
+        }),
       );
     });
 
@@ -184,7 +184,7 @@ describe('Astro Electron Integration', () => {
               }),
             ],
           },
-        })
+        }),
       );
     });
 
@@ -225,15 +225,15 @@ describe('Astro Electron Integration', () => {
               }),
             ],
           },
-        })
+        }),
       );
     });
   });
 
   describe('astro:build:done hook', () => {
     it('should process routes and update file contents', async () => {
-      const mockFileContent =
-        'content with /astro-electron-ts/path and /public/assets';
+      const mockFileContent
+        = 'content with /astro-electron-ts/path and /public/assets';
       const expectedContent = 'content with ./path and ./assets';
 
       (fs.readFile as any).mockResolvedValue(mockFileContent);
@@ -249,12 +249,12 @@ describe('Astro Electron Integration', () => {
 
       expect(fs.readFile).toHaveBeenCalledWith(
         expect.stringContaining('index.html'),
-        'utf-8'
+        'utf-8',
       );
 
       expect(fs.writeFile).toHaveBeenCalledWith(
         expect.stringContaining('index.html'),
-        expectedContent
+        expectedContent,
       );
     });
 
@@ -275,7 +275,7 @@ describe('Astro Electron Integration', () => {
 
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('Error processing route'),
-        expect.any(Error)
+        expect.any(Error),
       );
 
       consoleSpy.mockRestore();

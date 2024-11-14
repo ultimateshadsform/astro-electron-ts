@@ -1,11 +1,5 @@
-import type { OptionValues } from 'commander';
+import type { CreateOptions } from '../types';
 
-interface CreateOptions extends OptionValues {
-  typescript: boolean;
-  install: boolean;
-}
-
-export async function createNewProject(name: string, options: CreateOptions) {
-  // Implementation will go here
-  console.log(`Creating new project: ${name}`, options);
+export async function createNewProject(name: string, options: CreateOptions): Promise<void> {
+  // TODO: Implement project creation
 }

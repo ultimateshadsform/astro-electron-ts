@@ -1,5 +1,5 @@
 // eslint.config.mjs
-import antfu from '@antfu/eslint-config'
+import antfu from '@antfu/eslint-config';
 
 export default antfu({
 // Type of the project. 'lib' for libraries, the default is 'app'
@@ -43,5 +43,6 @@ export default antfu({
     '**/package-lock.json',
     '**/pnpm-lock.yaml',
     '**/*.md',
+    '**/templates',
   ],
-})
+});

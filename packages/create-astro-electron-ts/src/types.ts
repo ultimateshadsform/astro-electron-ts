@@ -2,6 +2,12 @@
  * Options for the create command.
  */
 export interface CreateOptions {
-  typescript: boolean
-  install: boolean
+  /**
+   * Whether to use TypeScript.
+   */
+  typescript: boolean;
+  /**
+   * Whether to install dependencies.
+   */
+  install: boolean;
 }
