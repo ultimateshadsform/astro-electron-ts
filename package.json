@@ -6,9 +6,15 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "bun run --cwd packages/* build",
-    "dev": "bun run --cwd packages/* dev",
-    "test": "bun run --cwd packages/* test",
+    "build": "bun run build:create && bun run build:integration",
+    "build:create": "bun run --cwd packages/create-astro-electron-ts build",
+    "build:integration": "bun run --cwd packages/astro-electron-ts build",
+    "dev": "bun run dev:create && bun run dev:integration",
+    "dev:create": "bun run --cwd packages/create-astro-electron-ts dev",
+    "dev:integration": "bun run --cwd packages/astro-electron-ts dev",
+    "test": "bun run test:create && bun run test:integration",
+    "test:create": "bun run --cwd packages/create-astro-electron-ts test",
+    "test:integration": "bun run --cwd packages/astro-electron-ts test",
     "clean": "bun rimraf packages/*/dist"
   },
   "devDependencies": {
