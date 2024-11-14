@@ -247,14 +247,19 @@ describe('astro-electron integration', () => {
 
       if (!buildHook) throw new Error('Build hook not defined');
 
-      // Mock fs.readFile to return HTML with absolute paths
+      // Mock fs.readFile to return HTML with various path types
       const mockHtmlContent = `
         <a href="/about">About</a>
-        <img src="/images/test.png">
+        <img src="/_astro/test.123456.png">
+        <script type="module" src="/_astro/hoisted.12345.js"></script>
+        <div hydrate="/_astro/component.js">
         <a href="/blog/">Blog</a>
+        <script>import("/_astro/dynamic.js")</script>
       `;
 
       const fs = await import('fs/promises');
+      const writeFileMock = vi.fn();
+      (fs.default.writeFile as any) = writeFileMock;
       (fs.default.readFile as any).mockResolvedValue(mockHtmlContent);
 
       const mockRoutes: RouteData[] = [
@@ -274,28 +279,52 @@ describe('astro-electron integration', () => {
         },
       ];
 
+      // Mock process.cwd()
+      const mockCwd = '/mock/project/root';
+      const originalCwd = process.cwd;
+      process.cwd = vi.fn().mockReturnValue(mockCwd);
+
       await buildHook({
-        dir: new URL('file:///path/to/dist/'),
+        dir: new URL('file:///mock/project/root/dist/'),
         routes: mockRoutes,
         logger: mockLogger,
         pages: [{ pathname: 'index.html' }],
         cacheManifest: false,
       });
 
-      const writeFileCall = (fs.default.writeFile as any).mock.calls[0];
-      const content = writeFileCall[1];
+      // Restore original cwd
+      process.cwd = originalCwd;
 
-      // Update expectations to match the actual path handling
-      expect(content).toContain('/about/index.html');
-      expect(content).toContain('/images/test.png');
-      expect(content).toContain('/blog/index.html');
+      const htmlWriteCall = writeFileMock.mock.calls.find(
+        (call) => !call[0].endsWith('routes.json')
+      );
+      const content = htmlWriteCall?.[1];
+
+      // Check for proper path transformations
+      expect(content).toContain(`file://${mockCwd}/dist/about/index.html`);
+      expect(content).toContain('src="./_astro//test.123456.png"');
+      expect(content).toContain('src="./_astro//hoisted.12345.js"');
+      expect(content).toContain('hydrate="./_astro//component.js"');
+      expect(content).toContain('import("./_astro//dynamic.js")');
     });
 
-    it('should handle Windows paths correctly', async () => {
+    it('should handle hash routing components correctly', async () => {
       const electronIntegration = integration();
       const buildHook = electronIntegration.hooks['astro:build:done'];
 
       if (!buildHook) throw new Error('Build hook not defined');
+
+      // Mock content with router configuration and links
+      const mockRouterContent = `
+        import { createHashRouter } from 'react-router-dom';
+        <a href="/about">About</a>
+        <a href="/blog">Blog</a>
+      `;
+
+      const fs = await import('fs/promises');
+      const writeFileMock = vi.fn();
+      (fs.default.writeFile as any) = writeFileMock;
+      (fs.default.readFile as any).mockResolvedValue(mockRouterContent);
 
       const mockRoutes: RouteData[] = [
         {
@@ -307,26 +336,98 @@ describe('astro-electron integration', () => {
           segments: [[]],
           type: 'page',
           prerender: false,
-          distURL: new URL('file:///C:/path/to/dist/index.html'),
+          distURL: new URL('file:///path/to/dist/router.jsx'),
           fallbackRoutes: [],
           isIndex: false,
           redirect: undefined,
         },
       ];
 
+      // Mock process.cwd()
+      const mockCwd = '/mock/project/root';
+      const originalCwd = process.cwd;
+      process.cwd = vi.fn().mockReturnValue(mockCwd);
+
       await buildHook({
-        dir: new URL('file:///C:/path/to/dist/'),
+        dir: new URL('file:///mock/project/root/dist/'),
+        routes: mockRoutes,
+        logger: mockLogger,
+        pages: [{ pathname: 'router.jsx' }],
+        cacheManifest: false,
+      });
+
+      // Restore original cwd
+      process.cwd = originalCwd;
+
+      const componentWriteCall = writeFileMock.mock.calls.find(
+        (call) => !call[0].endsWith('routes.json')
+      );
+      const content = componentWriteCall?.[1];
+
+      // Check that links are converted to hash routes in router components
+      expect(content).toContain('href="#about"');
+      expect(content).toContain('href="#blog"');
+    });
+
+    it('should handle _astro directory assets correctly', async () => {
+      const electronIntegration = integration();
+      const buildHook = electronIntegration.hooks['astro:build:done'];
+
+      if (!buildHook) throw new Error('Build hook not defined');
+
+      const mockHtmlContent = `
+        <script src="/_astro/script.js"></script>
+        <link rel="stylesheet" href="/_astro/styles.css">
+        <img src="/_astro/image.png">
+      `;
+
+      const fs = await import('fs/promises');
+      const writeFileMock = vi.fn();
+      (fs.default.writeFile as any) = writeFileMock;
+      (fs.default.readFile as any).mockResolvedValue(mockHtmlContent);
+
+      const mockRoutes: RouteData[] = [
+        {
+          route: '/',
+          component: '',
+          generate: vi.fn(),
+          params: [],
+          pattern: /\//,
+          segments: [[]],
+          type: 'page',
+          prerender: false,
+          distURL: new URL('file:///path/to/dist/index.html'),
+          fallbackRoutes: [],
+          isIndex: false,
+          redirect: undefined,
+        },
+      ];
+
+      // Mock process.cwd()
+      const mockCwd = '/mock/project/root';
+      const originalCwd = process.cwd;
+      process.cwd = vi.fn().mockReturnValue(mockCwd);
+
+      await buildHook({
+        dir: new URL('file:///mock/project/root/dist/'),
         routes: mockRoutes,
         logger: mockLogger,
         pages: [{ pathname: 'index.html' }],
         cacheManifest: false,
       });
 
-      const fs = await import('fs/promises');
-      expect(fs.default.readFile).toHaveBeenCalledWith(
-        'C:/path/to/dist/index.html',
-        'utf-8'
+      // Restore original cwd
+      process.cwd = originalCwd;
+
+      const htmlWriteCall = writeFileMock.mock.calls.find(
+        (call) => !call[0].endsWith('routes.json')
       );
+      const content = htmlWriteCall?.[1];
+
+      // Check that _astro paths are properly transformed
+      expect(content).toContain('src="./_astro//script.js"');
+      expect(content).toContain('href="./_astro//styles.css"');
+      expect(content).toContain('src="./_astro//image.png"');
     });
   });
 
@@ -442,6 +543,8 @@ describe('astro-electron integration', () => {
       `;
 
       const fs = await import('fs/promises');
+      const writeFileMock = vi.fn();
+      (fs.default.writeFile as any) = writeFileMock;
       (fs.default.readFile as any).mockResolvedValue(mockHtmlContent);
 
       const mockRoutes: RouteData[] = [
@@ -461,21 +564,30 @@ describe('astro-electron integration', () => {
         },
       ];
 
+      // Mock process.cwd()
+      const mockCwd = '/mock/project/root';
+      const originalCwd = process.cwd;
+      process.cwd = vi.fn().mockReturnValue(mockCwd);
+
       await buildHook({
-        dir: new URL('file:///path/to/dist/'),
+        dir: new URL('file:///mock/project/root/dist/'),
         routes: mockRoutes,
         logger: mockLogger,
         pages: [{ pathname: 'index.html' }],
         cacheManifest: false,
       });
 
-      // Get the actual content that was written
-      const writeFileCall = (fs.default.writeFile as any).mock.calls[0];
-      const content = writeFileCall[1];
+      // Restore original cwd
+      process.cwd = originalCwd;
 
-      // The content should contain the unmodified hash routes
-      expect(content).toContain('href="#/about"');
-      expect(content).toContain('href="/#/about"');
+      const htmlWriteCall = writeFileMock.mock.calls.find(
+        (call) => !call[0].endsWith('routes.json')
+      );
+      const content = htmlWriteCall?.[1];
+
+      // Check for hash routes in the transformed content
+      expect(content).toContain(`file://${mockCwd}/dist/index.html#/about`);
+      expect(content).toContain(`file://${mockCwd}/dist/index.html#/about`);
     });
   });
 });
