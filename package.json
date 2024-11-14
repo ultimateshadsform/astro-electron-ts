@@ -38,7 +38,8 @@
   },
   "peerDependencies": {
     "astro": "^4.0.0",
-    "electron": "33.2.0"
+    "electron": "33.2.0",
+    "vite-plugin-electron-renderer": "^0.14.6"
   },
   "devDependencies": {
     "tsup": "^8.3.0",

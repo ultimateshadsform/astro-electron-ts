@@ -91,7 +91,7 @@ describe('astro-electron integration', () => {
 
       expect(mockUpdateConfig).toHaveBeenCalledWith(
         expect.objectContaining({
-          base: '/astro-electron-ts',
+          base: './',
         })
       );
     });
@@ -195,6 +195,16 @@ describe('astro-electron integration', () => {
 
       if (!buildHook) throw new Error('Build hook not defined');
 
+      // Mock fs.readFile to return HTML with absolute paths
+      const mockHtmlContent = `
+        <a href="/about">About</a>
+        <img src="/images/test.png">
+        <a href="/blog/">Blog</a>
+      `;
+
+      const fs = await import('fs/promises');
+      (fs.default.readFile as any).mockResolvedValue(mockHtmlContent);
+
       const mockRoutes: RouteData[] = [
         {
           route: '/',
@@ -220,10 +230,14 @@ describe('astro-electron integration', () => {
         cacheManifest: false,
       });
 
-      // Verify that fs.readFile and fs.writeFile were called
-      const fs = await import('fs/promises');
-      expect(fs.default.readFile).toHaveBeenCalled();
-      expect(fs.default.writeFile).toHaveBeenCalled();
+      // Get the actual call arguments
+      const writeFileCall = (fs.default.writeFile as any).mock.calls[0];
+      const content = writeFileCall[1];
+
+      // Verify that paths were rewritten correctly
+      expect(content).toContain('path/to/dist/about/index.html');
+      expect(content).toContain('path/to/dist/images/test.png/index.html');
+      expect(content).toContain('path/to/dist/blog/index.html');
     });
 
     it('should handle Windows paths correctly', async () => {

@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import vitePluginElectron from 'vite-plugin-electron/simple';
+import { type RendererOptions } from 'vite-plugin-electron-renderer';
 import type { AstroIntegration, AstroConfig, RouteData } from 'astro';
 import type { UserConfig as ViteUserConfig } from 'vite';
 
@@ -13,7 +14,7 @@ interface ElectronIntegrationConfig {
     input?: string;
     vite?: Partial<ViteUserConfig>;
   };
-  renderer?: Partial<ViteUserConfig>;
+  renderer?: Partial<RendererOptions>;
 }
 
 export const integration = (
@@ -32,7 +33,7 @@ export const integration = (
     }) => {
       if (command === 'build') {
         updateConfig({
-          base: '/astro-electron-ts',
+          base: './',
         });
       }
 
@@ -50,7 +51,7 @@ export const integration = (
                   integrationConfig?.preload?.input || 'electron/preload.ts',
                 vite: integrationConfig?.preload?.vite || config.vite,
               },
-              renderer: integrationConfig?.renderer || undefined,
+              renderer: integrationConfig?.renderer as RendererOptions,
             }),
           ],
         },
@@ -66,27 +67,44 @@ export const integration = (
       await Promise.all(
         routes.map(async (route) => {
           if (route.distURL) {
-            // Convert URL to a proper file path
+            // Get the file path, handling both Windows and Unix paths
             const filePath = route.distURL.pathname;
-            // Remove any potential double slashes and fix Windows paths
+
+            // For Windows, remove the leading slash and drive letter format
             const normalizedPath = filePath
-              .replace(/^\//, '')
-              .replace(/\\/g, '/');
+              .replace(/^\/([A-Za-z]:)/, '$1') // Remove leading slash before drive letter
+              .replace(/^\//, '') // Remove leading slash for non-Windows paths
+              .replace(/\\/g, '/'); // Normalize backslashes to forward slashes
 
             try {
               const file = await fs.readFile(normalizedPath, 'utf-8');
               const localDir = path.dirname(normalizedPath);
-              const relativePath = path
-                .relative(localDir, new URL(dir).pathname)
-                .replace(/\\/g, '/'); // Normalize path separators
+              const rootDir = new URL(dir).pathname
+                .replace(/^\/([A-Za-z]:)/, '$1')
+                .replace(/\/$/, '');
 
-              await fs.writeFile(
-                normalizedPath,
-                file.replaceAll(
-                  /\/(astro-electron-ts|public)/g,
-                  relativePath || '.'
-                )
+              // Get the relative path from the HTML file to the root directory
+              const relativePath = path
+                .relative(localDir, rootDir)
+                .replace(/\\/g, '/') // Normalize path separators
+                .replace(/\/$/, ''); // Remove trailing slash
+
+              // Replace absolute paths with relative paths and append index.html where needed
+              const updatedContent = file.replace(
+                /(href|src)="\/([^"]*?)"/g,
+                (_match, attr, pathname) => {
+                  const prefix = relativePath ? relativePath : '.';
+                  // Append index.html to directory paths (those ending with /)
+                  const adjustedPath = pathname.endsWith('/')
+                    ? pathname + 'index.html'
+                    : pathname.endsWith('.html')
+                    ? pathname
+                    : pathname + '/index.html';
+                  return `${attr}="${prefix}/${adjustedPath}"`;
+                }
               );
+
+              await fs.writeFile(normalizedPath, updatedContent);
             } catch (error) {
               console.error(`Error processing file ${normalizedPath}:`, error);
               throw error;
